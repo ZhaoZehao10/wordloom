@@ -28,7 +28,7 @@ html, body {
 
 /* ---------- 面板通用 ---------- */
 
-#intro, #end {
+#intro, #end, #coll {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 10;
@@ -170,4 +170,25 @@ button.ghost:hover { color: var(--text); }
   width: 180px !important;
   font-size: 15px !important;
   border-radius: 12px !important;
+}
+
+/* ---------- 词集一览 ---------- */
+
+.coll-grid {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  justify-content: center;
+  max-height: 46vh; overflow-y: auto;
+  padding: 6px 2px 12px;
+}
+.coll-chip {
+  font-size: 13px; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid rgba(140, 165, 255, 0.18);
+  color: #4e5a7a; background: rgba(20, 27, 51, 0.5);
+  letter-spacing: 1px;
+}
+.coll-chip.got {
+  color: #eaf3ff;
+  border-color: rgba(108, 208, 255, 0.75);
+  background: rgba(108, 208, 255, 0.14);
+  box-shadow: 0 0 12px rgba(108, 208, 255, 0.18);
 }

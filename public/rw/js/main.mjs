@@ -150,6 +150,8 @@ window.__rw = {
     roundNew: state.roundNew.slice(),
     persisted: parseCollection(localStorage.getItem('rw-collection') || '').length,
   }),
+  debugOpenCollection: () => openCollection(),
+  debugCloseCollection: () => { closeCollection(); return $('coll').classList.contains('hidden'); },
 }; // 测试钩子
 
 
@@ -609,10 +611,37 @@ function menuClick(hand) {
   return applyMenuAction(id);
 }
 
+// ---------------- 词集一览（2D 面板） ----------------
+
+function openCollection() {
+  const grid = $('coll-grid');
+  if (!grid) return { chips: 0, got: 0 };
+  const got = new Set(state.collection);
+  grid.innerHTML = '';
+  for (const w of WORDS) {
+    const chip = document.createElement('span');
+    chip.className = got.has(w) ? 'coll-chip got' : 'coll-chip';
+    chip.textContent = w;
+    grid.appendChild(chip);
+  }
+  const prog = collectionProgress(state.collection, WORDS.length);
+  $('coll-count').textContent = `${prog.collected}/${prog.total}`;
+  $('coll').classList.remove('hidden');
+  sfx.ui();
+  return {
+    chips: grid.querySelectorAll('.coll-chip').length,
+    got: grid.querySelectorAll('.coll-chip.got').length,
+  };
+}
+
+function closeCollection() { $('coll').classList.add('hidden'); }
+
 // ---------------- 2D DOM ----------------
 
 function wire2D() {
-  $('start-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound('normal'); };
+  $('start-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(state.pendingDiff); };
+  $('coll-open').onclick = () => { openCollection(); };
+  $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
   document.querySelectorAll('.diff-pick').forEach((b) => {
     b.onclick = () => { audio.unlock(); sfx.ui(); startRound(b.dataset.diff); };
   });

@@ -17,7 +17,7 @@
     <p class="sub">RANDOM WALK · 标记独属于你的思想路径 · Pico Neo3 WebXR</p>
     <div class="stats">
       <span>第 <b id="hud-round">1</b> 局</span><i>·</i>
-      <span>词集 <b id="hud-collection">0</b>/<b id="hud-collection-total">60</b></span><i>·</i>
+      <span id="coll-open" style="cursor:pointer" title="查看词集">词集 <b id="hud-collection">0</b>/<b id="hud-collection-total">60</b></span><i>·</i>
       <span>累计 <b id="hud-score">0</b> 分</span><i>·</i>
       <span>最佳 <b id="hud-best">0</b></span>
     </div>
@@ -75,6 +75,18 @@
 </div>
 
 <div id="egg-flash" class="hidden">✦ 1024 ✦<small>步数限制已解除 · 本局无限步</small></div>
+
+<!-- 词集一览 -->
+<div id="coll" class="hidden">
+  <div class="card end-card">
+    <h2>词集 <span id="coll-count" style="color:#6cd0ff">0/60</span></h2>
+    <p class="sub" style="margin-bottom:12px">收录过的词会永久留在词集里，集满即全部点亮</p>
+    <div id="coll-grid" class="coll-grid"></div>
+    <div class="row">
+      <button id="coll-close" class="primary">知道了</button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="js/main.mjs"></script>
 </body>

@@ -339,7 +339,21 @@ ok(coll.hud === `${coll.after}/60`, `引导页词集进度显示 ${coll.hud}`);
 ok(coll.hist.includes('词集'), `结算页显示词集进度「${coll.hist}」`);
 ok(coll.prog.collected <= coll.prog.total && coll.prog.ratio <= 1, '词集进度不超过 100%', JSON.stringify(coll.prog));
 
-console.log('\n[12] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[12] 词集一览面板');
+const panel = await evalJs(`(() => {
+  const r = window.__rw.debugOpenCollection();
+  const visible = !document.getElementById('coll').classList.contains('hidden');
+  const countText = document.getElementById('coll-count').textContent;
+  const closed = window.__rw.debugCloseCollection();
+  return { ...r, visible, countText, closed, collection: window.__rw.collectionInfo().count };
+})()`);
+ok(panel.visible, '点词集打开一览面板');
+ok(panel.chips === 60, `面板渲染全部词库条目（${panel.chips} 个）`);
+ok(panel.got === panel.collection, `已收集高亮数 = 词集数（${panel.got}/${panel.collection}）`);
+ok(panel.countText === `${panel.collection}/60`, `面板标题显示进度 ${panel.countText}`);
+ok(panel.closed, '可关闭面板');
+
+console.log('\n[13] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
