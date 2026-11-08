@@ -17,6 +17,10 @@ import {
 } from '../public/rw/js/geometry.mjs';
 import { posterContent, drawPoster, POSTER_SIZE } from '../public/rw/js/poster.mjs';
 import { buildMenuLayout, hitTestMenu, isSelected, drawMenu, MENU_W, MENU_H } from '../public/rw/js/menu.mjs';
+import {
+  makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
+  summaryLine, HISTORY_LIMIT,
+} from '../public/rw/js/stats.mjs';
 
 let pass = 0;
 const failures = [];
@@ -520,6 +524,87 @@ section('F. VR 菜单');
     ok(texts.includes(label), `菜单画出按钮「${label}」`);
   }
   eq(layout.buttons.length, 10, 'drawMenu 返回布局完整');
+}
+
+// ═══════════════════ G. 本地战绩统计 ═══════════════════
+
+section('G. 本地战绩');
+
+{
+  // 记录生成：脏输入要能兜住
+  const r = makeRecord({ win: 1, score: 120, steps: 8, words: 4, diff: 'hard', ts: 111 });
+  eq(r.win, true, 'win 归一化为布尔');
+  eq(r.score, 120, 'score 透传');
+  eq(r.diff, 'hard', 'diff 透传');
+  const bad = makeRecord({ win: null, score: NaN, steps: undefined, words: 'x', diff: 42 });
+  ok(bad.win === false && bad.score === 0 && bad.steps === 0 && bad.words === 0, '脏输入全部归零', JSON.stringify(bad));
+  eq(bad.diff, 'normal', '非法 diff 回落到 normal');
+  ok(Number.isFinite(bad.ts), '缺失时间戳自动补');
+}
+
+{
+  // 追加 + 裁剪：新的在前，超出上限丢最老
+  let h = [];
+  for (let i = 0; i < HISTORY_LIMIT + 5; i++) h = appendRecord(h, { win: i % 2 === 0, score: i, steps: 1, words: 1 });
+  eq(h.length, HISTORY_LIMIT, `历史上限 ${HISTORY_LIMIT} 条`);
+  eq(h[0].score, HISTORY_LIMIT + 4, '最新记录在最前');
+  eq(h[h.length - 1].score, 5, '最老的被裁掉');
+
+  // 非数组输入容错
+  eq(appendRecord(null, { win: true, score: 1, steps: 1, words: 1 }).length, 1, 'history 为 null 时按空处理');
+  eq(appendRecord('bad', { win: true, score: 1, steps: 1, words: 1 }).length, 1, 'history 为字符串时按空处理');
+  // 自定义上限
+  eq(appendRecord([], { win: true, score: 1, steps: 1, words: 1 }, 1).length, 1, '支持自定义上限');
+}
+
+{
+  // 汇总统计
+  const h = [
+    { win: true, score: 300, steps: 10, words: 8, diff: 'normal' },
+    { win: false, score: 120, steps: 12, words: 5, diff: 'hard' },
+    { win: true, score: 200, steps: 8, words: 11, diff: 'hard' },
+    { win: false, score: 90, steps: 9, words: 3, diff: 'easy' },
+  ];
+  const s = summarize(h);
+  eq(s.rounds, 4, '局数');
+  eq(s.wins, 2, '胜局数');
+  eq(s.winRate, 0.5, '胜率');
+  eq(s.bestScore, 300, '最佳分');
+  eq(s.bestWords, 11, '单局最多收录');
+  eq(s.totalSteps, 39, '总步数');
+  eq(s.avgSteps, 9.8, '平均步数');
+  eq(s.lastWin, 0, '最近一次胜利的下标');
+  eq(s.byDiff.hard.rounds, 2, 'hard 局数');
+  eq(s.byDiff.hard.wins, 1, 'hard 胜局');
+  eq(s.byDiff.hard.best, 200, 'hard 最佳分');
+  eq(s.byDiff.easy.best, 90, 'easy 最佳分');
+
+  const empty = summarize([]);
+  eq(empty.rounds, 0, '空历史局数 0');
+  eq(empty.winRate, 0, '空历史胜率 0（不产生 NaN）');
+  eq(empty.lastWin, -1, '空历史 lastWin = -1');
+  eq(summarize(null).rounds, 0, 'summarize(null) 安全');
+  // 脏记录被过滤
+  eq(summarize([{ win: true }, null, 'x', h[0]]).rounds, 1, '脏记录不参与统计');
+}
+
+{
+  // 序列化 / 解析容错
+  const good = [{ win: true, score: 10, steps: 5, words: 2, diff: 'easy' }];
+  const round = parseHistory(serializeHistory(good));
+  eq(round.length, 1, '序列化往返');
+  eq(round[0].score, 10, '往返后字段一致');
+
+  eq(parseHistory('').length, 0, '空字符串 → 空历史');
+  eq(parseHistory('not json').length, 0, '坏 JSON → 空历史');
+  eq(parseHistory('{"a":1}').length, 0, '非数组 JSON → 空历史');
+  eq(parseHistory('[{"win":true}]').length, 0, '元素缺字段被过滤');
+  ok(isValidRecord({ win: false, score: 0, steps: 0, words: 0 }), '合法记录判定');
+  ok(!isValidRecord({ win: 'yes', score: 0, steps: 0, words: 0 }), '非法 win 类型被拒');
+
+  // 摘要文案
+  eq(summaryLine({ rounds: 0 }), '', '无战绩时摘要为空串');
+  eq(summaryLine(summarize(good)), '历史 1 局 · 胜率 100% · 最佳 10', '摘要文案格式');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

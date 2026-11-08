@@ -50,6 +50,7 @@ const gameSrc = [
   ['geometry', 'rw/js/geometry.mjs'], // 纯数组数学，无依赖
   ['poster', 'rw/js/poster.mjs'],     // 海报绘制，依赖 DOM canvas
   ['menu', 'rw/js/menu.mjs'],         // VR 菜单布局/命中，纯函数
+  ['stats', 'rw/js/stats.mjs'],       // 本地战绩统计，纯函数
   ['graph', 'rw/js/graph.mjs'],
   ['audio', 'rw/js/audio.mjs'],       // 依赖 data
   ['main', 'rw/js/main.mjs'],         // 依赖以上全部

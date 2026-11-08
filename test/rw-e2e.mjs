@@ -264,7 +264,46 @@ ok(menu.applied.timbre === 'chime', '菜单换音色 → chime');
 ok(menu.after.open === false, '点开始后菜单自动收起');
 ok(menu.after.mode === 'playing' && menu.after.steps === 16, `点开始 → 按 easy 开新局（${menu.after.steps} 步）`, JSON.stringify(menu.after));
 
-console.log('\n[10] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[10] 战绩统计 & 难度记忆 & VR 结算面板');
+const stats = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.debugMenuSelect('diff:hard');        // 选紧绷（下一局及重开都记住）
+  const before = window.__rw.historyInfo();
+  window.__rw.endRound(false);                      // 直接结算一局
+  await new Promise(r => setTimeout(r, 100));
+  const after = window.__rw.historyInfo();
+  const actions = window.__rw.debugShowEndPanel(false);
+  const q0 = window.__rw.debugQuote();
+  let changed = false;
+  for (let i = 0; i < 6 && !changed; i++) {
+    const q = window.__rw.debugRerollQuote();
+    if (q.text !== q0.text || q.flavor !== q0.flavor) changed = true;
+  }
+  window.__rw.debugEndAction('again');              // 按「再来一局」应沿用 hard
+  await new Promise(r => setTimeout(r, 100));
+  return {
+    beforeCount: before.count, afterCount: after.count,
+    rounds: after.summary.rounds, persisted: after.persisted,
+    historyText: document.getElementById('end-history').textContent,
+    diffText: document.getElementById('end-stats').textContent,
+    actions, quoteChanged: changed,
+    restartSteps: st.stepsLeft, restartDiff: st.diff, mode: st.mode,
+    savedDiff: localStorage.getItem('rw-diff'),
+    savedHistoryLen: JSON.parse(localStorage.getItem('rw-history') || '[]').length,
+  };
+})()`);
+ok(stats.afterCount === stats.beforeCount + 1, `结算后战绩 +1（${stats.beforeCount}→${stats.afterCount}）`);
+ok(stats.rounds >= 1 && stats.persisted >= 1, '战绩已写入 localStorage 并可读回', JSON.stringify(stats.rounds));
+ok(stats.historyText.includes('历史') && stats.historyText.includes('最佳'), `结算页显示历史摘要「${stats.historyText}」`);
+ok(stats.diffText.startsWith('悠然'), `结算页显示「本局难度」（第 9 节开的是悠然）「${stats.diffText}」`);
+ok(stats.actions.join(',') === 'requote,again', `VR 结算面板两个按钮：${stats.actions.join(',')}`);
+ok(stats.quoteChanged, '面板「换一句」能换出新一言');
+ok(stats.restartDiff === 'hard' && stats.restartSteps === 9, `「再来一局」沿用 hard（9 步），不再硬编码标准难度`);
+ok(stats.mode === 'playing', '重开后回到游玩态');
+ok(stats.savedDiff === 'hard', '难度选择已持久化（rw-diff）');
+ok(stats.savedHistoryLen === stats.afterCount, '战绩持久化条数与内存一致');
+
+console.log('\n[11] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

@@ -14,6 +14,9 @@ import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './
 import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw } from './rules.mjs';
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
+import {
+  appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
+} from './stats.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -35,6 +38,8 @@ const state = {
   collected: [],                // 收录的词（去重）
   score: 0,
   best: parseInt(localStorage.getItem('rw-best') || '0', 10) || 0,
+  history: parseHistory(localStorage.getItem('rw-history') || ''),  // 最近若干局战绩
+  diff: 'normal',               // 本局难度 key
   round: 0,
   skin: localStorage.getItem('rw-skin') || 'ink',
   glide: null,                  // {from, to, t} 滑翔动画
@@ -44,7 +49,11 @@ const state = {
   eggTyped: '',                 // 1024 键盘彩蛋
   titleTaps: 0,                 // 标题连点计数
   turn: {},                     // 每只手柄的快转状态 { armed }
-  pendingDiff: 'normal',        // VR 菜单里选择、下一局生效的难度
+  // VR 菜单里选择、下一局生效的难度（记住上次选择）
+  pendingDiff: (() => {
+    const saved = localStorage.getItem('rw-diff');
+    return DIFFICULTIES.some((d) => d.key === saved) ? saved : 'normal';
+  })(),
 };
 
 let renderer, scene, camera, rig, controllers = {};
@@ -115,6 +124,22 @@ window.__rw = {
   debugMenuSelect: (id) => applyMenuAction(id),
   debugMenuButtons: () => (menuLayout ? menuLayout.buttons.map((b) => b.id) : []),
   debugMenuHit: (u, v) => (menuLayout ? hitTestMenu(menuLayout.buttons, u, v) : null),
+  // 战绩统计
+  historyInfo: () => ({
+    count: state.history.length,
+    summary: summarize(state.history),
+    persisted: parseHistory(localStorage.getItem('rw-history') || '').length,
+  }),
+  // 结算面板（桌面模式也能构造，便于断言按钮与动作）
+  debugShowEndPanel: (win) => {
+    forceEndPanel = true;
+    showEndPanel(!!win);
+    forceEndPanel = false;
+    return endGroup ? endGroup.userData.hits.map((h) => h.userData.action) : [];
+  },
+  debugEndAction: (action) => handleEndPanelAction(action),
+  debugRerollQuote: () => { rerollQuote(); return state.flavor; },
+  debugQuote: () => state.flavor,
 }; // 测试钩子
 
 
@@ -312,6 +337,9 @@ function beginGlide(idx) {
 
 function startRound(diffKey) {
   const diff = DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1];
+  state.diff = diff.key;
+  state.pendingDiff = diff.key;                 // 记住难度，跨局/跨会话生效
+  localStorage.setItem('rw-diff', diff.key);
   state.stepsMax = diff.steps;
   state.stepsLeft = diff.steps;
   state.unlimited = false;
@@ -342,12 +370,15 @@ function startRound(diffKey) {
 }
 
 function endRound(win) {
+  // 防重复结算（滑翔抵达 / 调试调用都可能触发）
+  if (state.mode === 'ended' || state.mode === 'ended-fail') return;
   state.mode = win ? 'ended' : 'ended-fail';
   // 计分统一由 rules.mjs 计算（与单元测试、2D/VR 结算面板共用同一份规则）
+  const wordCount = new Set(state.collected).size;
   state.score += finalScore({
     win,
     stepsLeft: state.stepsLeft,
-    wordCount: new Set(state.collected).size,
+    wordCount,
     unlimited: state.unlimited,
   });
   if (win) sfx.win(); else sfx.fail();
@@ -355,6 +386,16 @@ function endRound(win) {
     state.best = state.score;
     localStorage.setItem('rw-best', String(state.best));
   }
+  // 战绩记录（最近 N 局，含难度与彩蛋标记）
+  state.history = appendRecord(state.history, {
+    win,
+    score: state.score,
+    steps: state.visited.length - 1,
+    words: wordCount,
+    diff: state.diff,
+    unlimited: state.unlimited,
+  }, HISTORY_LIMIT);
+  localStorage.setItem('rw-history', serializeHistory(state.history));
   refreshAdjacencyVisuals();                    // 关掉所有光环
   fillEnd();
   $('end').classList.remove('hidden');
@@ -386,6 +427,8 @@ function resultData(win) {
     words: r.words,
     steps: r.steps,
     achievements: r.achievements,
+    diffName: (DIFFICULTIES.find((d) => d.key === state.diff) || DIFFICULTIES[1]).name,
+    historyLine: summaryLine(summarize(state.history)),
   };
 }
 
@@ -500,6 +543,7 @@ function applyMenuAction(id) {
   const [kind, value] = id.split(':');
   if (kind === 'diff') {
     state.pendingDiff = value;          // 难度下一局生效（避免中途改规则）
+    localStorage.setItem('rw-diff', value);
     redrawMenu();
   } else if (kind === 'skin') {
     state.skin = value;
@@ -563,12 +607,8 @@ function wire2D() {
     if (!audio.muted) sfx.ui();
   };
   $('poster-btn').onclick = () => { sfx.ui(); downloadPoster(); };
-  $('again-btn').onclick = () => { sfx.ui(); startRound('normal'); };
-  $('requote-btn').onclick = () => {
-    state.flavor = pickQuote();
-    fillEnd();
-    sfx.ui();
-  };
+  $('again-btn').onclick = () => { sfx.ui(); startRound(state.pendingDiff); };
+  $('requote-btn').onclick = () => rerollQuote();
   $('copy-btn').onclick = () => {
     const r = resultData(state.mode === 'ended');
     const text = `【随机游走 · 思想路径】\n${r.poem}\n「${r.quote.text}」—— ${r.quote.flavor}\n${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分（最佳 ${r.best}）`;
@@ -638,7 +678,9 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${r.quote.flavor} 一言`;
-  $('end-stats').textContent = `${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分 · 最佳 ${r.best}`;
+  $('end-stats').textContent = `${r.diffName} · ${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分 · 最佳 ${r.best}`;
+  $('end-history').textContent = r.historyLine || '';
+  $('end-history').style.display = r.historyLine ? '' : 'none';
   $('end-ach').innerHTML = r.achievements.length
     ? r.achievements.map((a) => `<span class="ach">${a.icon} ${a.name}</span>`).join('')
     : '<span class="ach" style="opacity:.45">— 本次无成就 —</span>';
@@ -909,23 +951,31 @@ function updateVrHud() {
   hudGroup.quaternion.copy(camera.getWorldQuaternion(new THREE.Quaternion()));
 }
 
-// ---------------- VR 结算面板（射线点「再来一局」） ----------------
+// ---------------- VR 结算面板（射线点「换一句」/「再来一局」） ----------------
+
+let forceEndPanel = false;   // 测试用：桌面模式下也构造成结算面板以便断言
 
 function showEndPanel(win) {
-  if (!renderer.xr.isPresenting) return;
+  if (!renderer.xr.isPresenting && !forceEndPanel) return;
   closeEndPanel();
   endGroup = new THREE.Group();
   const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: endPanelTexture(win), transparent: true, depthTest: false }));
   spr.scale.set(1.0, 1.0, 1);
   spr.renderOrder = 30;
   endGroup.add(spr);
-  const hit = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.66, 0.1),
-    new THREE.MeshBasicMaterial({ visible: false })
-  );
-  hit.position.set(0, -0.215, 0.001);
-  endGroup.add(hit);
-  endGroup.userData.hit = hit;
+  // 两个按钮的命中区（不可见平面）：左「换一句」右「再来一局」
+  const mkHit = (x, action) => {
+    const h = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.44, 0.10),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    h.position.set(x, -0.41, 0.001);
+    h.userData.action = action;
+    endGroup.add(h);
+    return h;
+  };
+  const hits = [mkHit(-0.25, 'requote'), mkHit(0.25, 'again')];
+  endGroup.userData.hits = hits;
   const cp = new THREE.Vector3();
   camera.getWorldPosition(cp);
   const q = camera.getWorldQuaternion(new THREE.Quaternion());
@@ -956,22 +1006,40 @@ function endPanelTexture(win) {
   c.textAlign = 'center';
   c.fillStyle = win ? '#ffcf4d' : '#dfe7ff';
   c.font = 'bold 54px "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
-  c.fillText(win ? '抵达 1024' : '路未走完', 256, 84);
-  c.fillStyle = '#8b96b8';
-  c.font = '30px sans-serif';
-  c.fillText(`${r.steps} 步 · ${r.words.length} 词 · ${r.score} 分`, 256, 132);
-  c.fillStyle = '#e8eeff';
-  c.font = '34px "PingFang SC", "Microsoft YaHei", sans-serif';
-  wrapText(c, r.poem, 256, 188, 440, 46, 3);
-  c.fillStyle = '#b18cff';
-  c.font = 'italic 30px "PingFang SC", serif';
-  wrapText(c, `「${r.quote.text}」`, 256, 320, 440, 40, 2);
+  c.fillText(win ? '抵达 1024' : '路未走完', 256, 80);
   c.fillStyle = '#8b96b8';
   c.font = '28px sans-serif';
-  c.fillText(`— ${r.quote.flavor} —`, 256, 402);
-  c.fillStyle = win ? '#6dffa8' : '#ff8866';
-  c.font = 'bold 40px sans-serif';
-  c.fillText('▸ 再来一局', 256, 466);
+  c.fillText(`${r.diffName} · ${r.steps} 步 · ${r.words.length} 词 · ${r.score} 分`, 256, 126);
+  if (r.historyLine) {
+    c.fillStyle = '#6f7a99';
+    c.font = '22px sans-serif';
+    c.fillText(r.historyLine, 256, 160);
+  }
+  c.fillStyle = '#e8eeff';
+  c.font = '34px "PingFang SC", "Microsoft YaHei", sans-serif';
+  wrapText(c, r.poem, 256, 212, 440, 44, 3);
+  c.fillStyle = '#b18cff';
+  c.font = 'italic 29px "PingFang SC", serif';
+  wrapText(c, `「${r.quote.text}」`, 256, 330, 440, 38, 2);
+  c.fillStyle = '#8b96b8';
+  c.font = '26px sans-serif';
+  c.fillText(`— ${r.quote.flavor} —`, 256, 408);
+
+  // 两个按钮：左「换一句」右「再来一局」
+  const drawBtn = (label, cx, fill, stroke, color, bold) => {
+    c.fillStyle = fill;
+    c.strokeStyle = stroke;
+    c.lineWidth = 3;
+    rrect(c, cx - 100, 442, 200, 56, 16);
+    c.fill(); c.stroke();
+    c.fillStyle = color;
+    c.font = `${bold ? 'bold ' : ''}30px "PingFang SC","Microsoft YaHei",sans-serif`;
+    c.fillText(label, cx, 477);
+  };
+  drawBtn('↻ 换一句', 128, 'rgba(40,52,90,0.9)', 'rgba(140,165,255,0.5)', '#cfd8ff', false);
+  drawBtn('▸ 再来一局', 384, win ? 'rgba(70,110,200,0.85)' : 'rgba(120,70,90,0.85)',
+    win ? 'rgba(150,200,255,0.9)' : 'rgba(255,150,140,0.8)', '#ffffff', true);
+
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -990,14 +1058,35 @@ function wrapText(c, text, x, y, maxW, lineH, maxLines) {
 }
 
 function endPanelClick(hand) {
-  if (!endGroup) return;
+  if (!endGroup) return false;
   const c = controllers[hand];
-  if (!c) return;
+  if (!c) return false;
   raycaster.set(c.getWorldPosition(new THREE.Vector3()), c.getWorldDirection(new THREE.Vector3()));
-  if (raycaster.intersectObject(endGroup.userData.hit).length) {
+  const hits = raycaster.intersectObjects(endGroup.userData.hits, false);
+  if (!hits.length) return false;
+  return handleEndPanelAction(hits[0].object.userData.action);
+}
+
+// 结算面板按钮的动作分发（射线点击与测试钩子共用同一条路径）
+function handleEndPanelAction(action) {
+  if (action === 'again') {
     sfx.ui();
-    startRound('normal');
+    startRound(state.pendingDiff);       // 保持玩家当前难度选择，而不是硬编码
+    return true;
   }
+  if (action === 'requote') {
+    rerollQuote();
+    return true;
+  }
+  return false;
+}
+
+// 结算面板上「换一句」：重选一言并重绘面板（VR 内也能换）
+function rerollQuote() {
+  state.flavor = pickQuote();
+  fillEnd();
+  showEndPanel(state.mode === 'ended');
+  sfx.ui();
 }
 
 // ---------------- 主循环 ----------------
