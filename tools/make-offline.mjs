@@ -48,6 +48,7 @@ const gameSrc = [
   ['data', 'rw/js/data.mjs'],
   ['rules', 'rw/js/rules.mjs'],       // 依赖 data
   ['geometry', 'rw/js/geometry.mjs'], // 纯数组数学，无依赖
+  ['poster', 'rw/js/poster.mjs'],     // 海报绘制，依赖 DOM canvas
   ['graph', 'rw/js/graph.mjs'],
   ['audio', 'rw/js/audio.mjs'],       // 依赖 data
   ['main', 'rw/js/main.mjs'],         // 依赖以上全部

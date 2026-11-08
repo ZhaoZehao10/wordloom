@@ -214,7 +214,31 @@ ok(sw.timbre !== 'wood', '音色已切换');
 ok(sw.muted === true, '静音开关生效');
 await evalJs(`document.getElementById('mute-btn').click()`); // 恢复音效
 
-console.log('\n[8] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[8] 海报导出 & 舒适性快转');
+const poster = await evalJs(`(() => {
+  const url = window.__rw.buildPosterDataURL();
+  return { isPng: url.startsWith('data:image/png;base64,'), bytes: url.length, btn: !!document.getElementById('poster-btn') };
+})()`);
+ok(poster.isPng, '海报导出为 PNG dataURL', JSON.stringify({ bytes: poster.bytes }));
+ok(poster.bytes > 20000, `海报数据量 ${poster.bytes} 字符（含真实像素，非空白）`);
+ok(poster.btn, '结算页存在「下载海报 PNG」按钮');
+
+const snap = await evalJs(`(() => {
+  const r0 = window.__rw.debugSnap(0, 'right');       // 先回中，确保已武装
+  const r1 = window.__rw.debugSnap(1, 'right');       // 右推 → 应转 -30°
+  const r2 = window.__rw.debugSnap(1, 'right');       // 未回中继续推 → 不应再转
+  const r3 = window.__rw.debugSnap(0, 'right');       // 回中 → 重新武装
+  const r4 = window.__rw.debugSnap(1, 'right');       // 再推 → 再转
+  return { r0, r1, r2, r3, r4 };
+})()`);
+const STEP = Math.PI / 6;
+ok(Math.abs(snap.r1 - snap.r0 + STEP) < 1e-6, '右推一次 = 右转 30°', JSON.stringify(snap));
+ok(Math.abs(snap.r2 - snap.r1) < 1e-9, '未回中重复推 → 不再转（防转圈）');
+ok(Math.abs(snap.r3 - snap.r2) < 1e-9, '回中本身不改变朝向');
+ok(Math.abs(snap.r4 - snap.r3 + STEP) < 1e-6, '回中后再推 → 再次右转 30°');
+await evalJs(`window.__rw.debugSnap(0, 'right')`);
+
+console.log('\n[9] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

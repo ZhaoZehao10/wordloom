@@ -10,10 +10,12 @@ import { generateGraph } from '../public/rw/js/graph.mjs';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
+  snapTurn, normalizeYaw,
 } from '../public/rw/js/rules.mjs';
 import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
 } from '../public/rw/js/geometry.mjs';
+import { posterContent, drawPoster, POSTER_SIZE } from '../public/rw/js/poster.mjs';
 
 let pass = 0;
 const failures = [];
@@ -360,6 +362,91 @@ section('D. 合批几何');
     if (lit.colors[v * 3] < dim.colors[v * 3]) allBrighter = false;
   }
   ok(allBrighter, 'brightness 提升后每个顶点都不暗于原色（高亮语义正确）');
+}
+
+// ═══════════════════ E. 舒适性快转 & 海报 ═══════════════════
+
+section('E. 快转 & 海报');
+
+{
+  const step = (30 * Math.PI) / 180;
+  // 死区边界：0.74 不触发、0.75 触发
+  eq(snapTurn({ x: 0.74 }).rot, 0, '摇杆 0.74 未过死区 → 不转');
+  eq(snapTurn({ x: 0.75 }).rot, -step, '摇杆推到 0.75（右）→ 右转 30°');
+  eq(snapTurn({ x: -0.9 }).rot, step, '摇杆向左 → 左转 30°');
+  // 触发后必须回中
+  eq(snapTurn({ x: 0.9, armed: false }).rot, 0, '未回中时同方向继续推 → 不再转（防转圈）');
+  eq(snapTurn({ x: 0.5, armed: false }).rot, 0, '仍在死区内 → 不重新武装');
+  eq(snapTurn({ x: 0.2, armed: false }), { rot: 0, armed: true }, '回到中位 → 重新武装');
+  eq(snapTurn({ x: NaN }).rot, 0, 'NaN 输入不崩溃');
+  eq(snapTurn({ x: Infinity }).rot, 0, 'Infinity 视为无效输入 → 不转（脏数据不乱转）');
+  // Yaw 归一化
+  eq(normalizeYaw(0), 0, 'yaw 0 保持');
+  ok(Math.abs(normalizeYaw(Math.PI * 3) - Math.PI) < 1e-9, 'yaw 3π → π');
+  ok(Math.abs(normalizeYaw(-Math.PI * 3) - Math.PI) < 1e-9, 'yaw -3π → π');
+  ok(Math.abs(normalizeYaw(-Math.PI * 4)) < 1e-9, 'yaw -4π → 0');
+}
+
+{
+  const base = {
+    win: true, poem: '光 · 熵 · 梦', words: ['光', '熵', '梦'], wordCount: 3,
+    quote: { flavor: '极客', text: '人生没有 undo' }, score: 190,
+    achievements: [{ icon: '🏁', name: '抵达 1024' }], steps: 7,
+  };
+  const pc = posterContent(base, { round: 3 });
+  eq(pc.title, '随机游走', '海报标题');
+  eq(pc.outcome, '抵达 1024', '胜利海报结果文案');
+  eq(pc.poemLines, ['光 · 熵 · 梦'], '海报路径诗单行');
+  eq(pc.quote, '「人生没有 undo」', '海报一言加引号');
+  eq(pc.flavor, '—— 极客 一言', '海报口味标签');
+  ok(pc.stats.includes('7 步') && pc.stats.includes('3 词') && pc.stats.includes('190 分'), '海报数据行', pc.stats);
+  eq(pc.achievements, ['🏁 抵达 1024'], '海报成就');
+  eq(pc.footer, '第 3 局 · Pico Neo3 VR', '海报页脚含局数');
+
+  // 失败文案
+  eq(posterContent({ ...base, win: false }).outcome, '路，未走完', '失败海报结果文案');
+  // 超长路径分行：13 个词 → 每行 6 个 → 3 行
+  const many = Array.from({ length: 13 }, (_, i) => `w${i}`);
+  const pcm = posterContent({ ...base, words: many, wordCount: 13 });
+  eq(pcm.poemLines.length, 3, '13 个词分 3 行');
+  ok(pcm.poemLines[0].split(' · ').length === 6, '每行最多 6 个词');
+  // 超过 4 行要截断并加省略号
+  const tons = Array.from({ length: 40 }, (_, i) => `w${i}`);
+  const pct = posterContent({ ...base, words: tons, wordCount: 40 });
+  eq(pct.poemLines.length, 4, '最多 4 行');
+  ok(pct.poemLines[3].endsWith('…'), '截断行带省略号');
+  // 空路径
+  eq(posterContent({ ...base, words: [], wordCount: 0 }).poemLines, ['（一条无言的路）'], '空路径兜底');
+}
+
+{
+  // mock 2D context：断言「画出来的文字」包含全部关键内容
+  const texts = [];
+  const ctx = {
+    font: '', fillStyle: '', strokeStyle: '', lineWidth: 1, textAlign: '', textBaseline: '',
+    fillText(s) { texts.push(String(s)); },
+    measureText(s) { return { width: String(s).length * 14 }; },
+    createLinearGradient() { return { addColorStop() {} }; },
+    fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+    arcTo() {}, closePath() {}, fill() {},
+  };
+  const result = {
+    win: true, words: ['银河', '熵', '梦'], wordCount: 3, steps: 6, score: 210,
+    poem: '银河 · 熵 · 梦',
+    quote: { flavor: '哲思', text: '每一步都是对无限可能的一次删减' },
+    achievements: [{ icon: '🏁', name: '抵达 1024' }, { icon: '📿', name: '字字珠玑' }],
+  };
+  const { drawn, data } = drawPoster(ctx, result, { round: 1 });
+  eq(POSTER_SIZE.width, 1080, '海报宽度 1080');
+  eq(POSTER_SIZE.height, 1620, '海报高度 1620');
+  ok(drawn.length > 8, `海报绘制文字条数 ${drawn.length} > 8`);
+  ok(texts.includes('随机游走'), '画出了标题');
+  ok(texts.includes('抵达 1024'), '画出了结果');
+  ok(texts.some((s) => s.includes('银河')), '画出了路径词');
+  ok(texts.some((s) => s.includes('每一步都是对无限可能')), '画出了一言');
+  ok(texts.some((s) => s.includes('6 步')), '画出了数据行');
+  ok(texts.some((s) => s.includes('🏁 抵达 1024')), '画出了成就');
+  eq(data.outcome, '抵达 1024', 'drawPoster 返回的数据与内容一致');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

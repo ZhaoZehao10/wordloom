@@ -11,7 +11,8 @@ import { WORDS, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
-import { scoreForWalk, finalScore, buildResult, pickQuote } from './rules.mjs';
+import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw } from './rules.mjs';
+import { drawPoster, POSTER_SIZE } from './poster.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -41,6 +42,7 @@ const state = {
   flavor: null,                 // 结算选中的一言
   eggTyped: '',                 // 1024 键盘彩蛋
   titleTaps: 0,                 // 标题连点计数
+  turn: {},                     // 每只手柄的快转状态 { armed }
 };
 
 let renderer, scene, camera, rig, controllers = {};
@@ -96,6 +98,15 @@ window.__rw = {
   },
   // 诊断用：暴露内部对象做深度/遮挡验证
   debugRefs: () => ({ THREE, camera, ballsMesh, edgeLines, raycaster, scene, rig }),
+  // 海报导出（测试用：直接拿 dataURL 校验非空/尺寸）
+  buildPosterDataURL: () => buildPosterCanvas().toDataURL('image/png'),
+  posterContentFor: () => {
+    // 与海报同源的内容（测试断言文案是否齐全）
+    const r = resultData(state.mode === 'ended');
+    return { poem: r.poem, words: r.words.length, quote: r.quote, score: r.score, achievements: r.achievements.length };
+  },
+  // 快转（测试用：等价于摇杆输入）
+  debugSnap: (x, hand = 'right') => applySnap(hand, x),
 }; // 测试钩子
 
 
@@ -363,6 +374,60 @@ function resultData(win) {
   };
 }
 
+// ---------------- 海报导出（对齐原版「下载海报 PNG」） ----------------
+
+function buildPosterCanvas() {
+  const cv = document.createElement('canvas');
+  cv.width = POSTER_SIZE.width;
+  cv.height = POSTER_SIZE.height;
+  const ctx = cv.getContext('2d');
+  drawPoster(ctx, resultData(state.mode === 'ended'), { round: state.round });
+  return cv;
+}
+
+function downloadPoster() {
+  try {
+    const cv = buildPosterCanvas();
+    cv.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `随机游走-思想路径-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  } catch { /* 无下载能力时静默（如部分头显浏览器） */ }
+}
+
+// ---------------- 舒适性：快转（snap turn） ----------------
+// 摇杆推过死区 → 转固定 30°；回中后才能再次触发，避免连续转圈致晕。
+// Pico 手柄的摇杆一般在 axes[2]/axes[3]；兼容只有 axes[0]/[1] 的机型。
+
+function applySnap(key, x) {
+  const st = state.turn[key] || (state.turn[key] = { armed: true });
+  const r = snapTurn({ x, armed: st.armed });
+  st.armed = r.armed;
+  if (r.rot) {
+    rig.rotation.y = normalizeYaw(rig.rotation.y + r.rot);
+    sfx.ui();
+  }
+  return rig.rotation.y;
+}
+
+function pollSnapTurn() {
+  if (!renderer.xr.isPresenting) return;
+  const session = renderer.xr.getSession?.();
+  if (!session) return;
+  for (const src of session.inputSources) {
+    if (!src.gamepad || !src.gamepad.axes) continue;
+    const axes = src.gamepad.axes;
+    const x = axes.length >= 4 ? axes[2] : axes[0];
+    applySnap(src.handedness || 'none', x);
+  }
+}
+
 // ---------------- 2D DOM ----------------
 
 function wire2D() {
@@ -394,6 +459,7 @@ function wire2D() {
     $('mute-btn').textContent = audio.muted ? '🔇 静音' : '🔊 音效';
     if (!audio.muted) sfx.ui();
   };
+  $('poster-btn').onclick = () => { sfx.ui(); downloadPoster(); };
   $('again-btn').onclick = () => { sfx.ui(); startRound('normal'); };
   $('requote-btn').onclick = () => {
     state.flavor = pickQuote();
@@ -875,6 +941,7 @@ function animate() {
 
   if (starfield) starfield.rotation.y = t * 0.004;
 
+  pollSnapTurn();
   updateVrHud();
   renderer.render(scene, camera);
 }

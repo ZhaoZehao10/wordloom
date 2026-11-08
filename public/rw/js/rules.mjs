@@ -48,8 +48,37 @@ export function pathPoem(words, maxWords = 8) {
 }
 
 /**
+ * 快转（snap turn）判定：把摇杆横向输入变成一次固定角度的转身。
+ *
+ * VR 舒适性要求：连续平滑转身会让人晕，业界通用做法是「推一下转固定角度」。
+ * 触发后必须把摇杆回中（≤ rearm）才能再次触发，否则会连续转圈。
+ *
+ * 约定：右手坐标系、Y 轴向上，yaw 正方向为左转；因此摇杆推右（x>0）返回负角。
+ *
+ * @returns {{rot:number, armed:boolean}} rot 为本次应施加的 yaw 弧度（0 = 不转）
+ */
+export function snapTurn({ x, armed = true, deadzone = 0.75, rearm = 0.35, stepDeg = 30 }) {
+  const step = (stepDeg * Math.PI) / 180;
+  const v = Number.isFinite(x) ? x : 0;
+  if (armed && Math.abs(v) >= deadzone) {
+    return { rot: v > 0 ? -step : step, armed: false };
+  }
+  if (!armed && Math.abs(v) <= rearm) return { rot: 0, armed: true };
+  return { rot: 0, armed };
+}
+
+/** 把 rig 的 yaw 归一化到 (-π, π]，避免长时间游玩后数值无限增长。 */
+export function normalizeYaw(yaw) {
+  const twoPi = Math.PI * 2;
+  let y = yaw % twoPi;
+  if (y <= -Math.PI) y += twoPi;
+  else if (y > Math.PI) y -= twoPi;
+  return y;
+}
+
+/**
  * 选一句「一言」。rand 注入便于测试；返回 { flavor, text }。
- * 五种口味各取一次，避免随机数退化时永远同一句。
+ * 用取模兜底，防止 rand() 恰好返回 1 时数组越界。
  */
 export function pickQuote(rand = Math.random) {
   const flavor = FLAVORS[Math.floor(rand() * FLAVORS.length) % FLAVORS.length];
