@@ -7,9 +7,11 @@
 //   · 彩蛋：连点标题七次解除步数限制；键盘敲出 1024 触发音效与成就。
 import * as THREE from '../../vendor/three.module.min.js';
 import { VRButton } from '../../vendor/VRButton.js';
-import { WORDS, QUOTES, FLAVORS, SKINS, TIMBRES, ACHIEVEMENTS, DIFFICULTIES, SCORE } from './data.mjs';
+import { WORDS, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
+import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
+import { scoreForWalk, finalScore, buildResult, pickQuote } from './rules.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -43,8 +45,22 @@ const state = {
 
 let renderer, scene, camera, rig, controllers = {};
 let nodeGroup, lineGroup, beacon, starfield;
-const lineObjs = new Map();     // 边 key → Line 对象（走过的边高亮用）
-let pickables = [];             // 可射线节点 mesh
+
+// —— 合批渲染：全部词球一个 Mesh、全部边一个 LineSegments ——
+// 目的：把 drawcall 从 ~113 压到 ~40（Pico Neo3 的 XR2 CPU 是桌面 1/6，
+// drawcall 提交是主要瓶颈）。状态变化只改顶点色属性，不改对象数量。
+let ballsMesh = null;        // 合批词球（顶点色烘焙光照）
+let ballsGeo = null;         // 其几何（改色时置 needsUpdate）
+let ballNormals = null;      // 法线副本（回写顶点色时算光照）
+let ballRanges = null;       // 每节点的顶点区间/中心/基础色
+let ballFaceToNode = null;   // 三角形 → 节点索引（射线拾取用）
+let edgeLines = null;        // 合批边
+let edgeGeo = null;
+let edgeColors = null;       // 边顶点色缓冲
+const edgeIndexByKey = new Map(); // 边 key → 边序号（走过的边染色用）
+let edgeKeys = [];           // 边序号 → key
+
+let pickables = [];             // 可射线对象（合批后只有 1 个）
 let hudGroup = null;            // VR 内 HUD 面板
 let endGroup = null;            // VR 结算面板
 const clock = new THREE.Clock();
@@ -57,7 +73,30 @@ const $ = (id) => document.getElementById(id);
 initScene();
 wire2D();
 renderer.setAnimationLoop(animate);
-window.__rw = { state, startRound, endRound, tryWalk, audio, sfx, rendererInfo: () => renderer.info.render }; // 测试钩子
+window.__rw = {
+  state, startRound, endRound, tryWalk, audio, sfx,
+  rendererInfo: () => renderer.info.render,
+  // 合批几何自检（测试/诊断用，不参与游戏逻辑）
+  ballsGeoInfo: () => (ballsGeo ? {
+    indexCount: ballsGeo.index?.count ?? null,
+    indexType: ballsGeo.index?.array?.constructor?.name ?? null,
+    vertexCount: ballsGeo.attributes.position.count,
+    colorCount: ballsGeo.attributes.color.count,
+    normalCount: ballsGeo.attributes.normal.count,
+    firstIndices: ballsGeo.index ? Array.from(ballsGeo.index.array.slice(0, 12)) : null,
+    nodeCount: ballRanges?.length ?? 0,
+    faceMapLen: ballFaceToNode?.length ?? 0,
+  } : null),
+  // 分层显隐（诊断用）：'balls' | 'edges' | 'labels'
+  debugToggle: (what, on) => {
+    if (what === 'balls' && ballsMesh) ballsMesh.visible = on;
+    if (what === 'edges' && edgeLines) edgeLines.visible = on;
+    if (what === 'labels' && state.graph) for (const nd of state.graph.nodes) if (nd._obj) nd._obj.userData.label.visible = on;
+    return true;
+  },
+  // 诊断用：暴露内部对象做深度/遮挡验证
+  debugRefs: () => ({ THREE, camera, ballsMesh, edgeLines, raycaster, scene, rig }),
+}; // 测试钩子
 
 
 function initScene() {
@@ -162,13 +201,17 @@ function buildControllers() {
 }
 
 // 射线当前瞄准的节点 idx（null = 没瞄准）
+// 合批后只剩一个 Mesh：命中三角形的 faceIndex 经 faceToNode 反查节点。
 function aimedNode(hand) {
   const c = controllers[hand];
-  if (!c) return null;
+  if (!c || !ballsMesh) return null;
   raycaster.set(c.getWorldPosition(new THREE.Vector3()), c.getWorldDirection(new THREE.Vector3()));
   raycaster.far = RAY_LEN;
-  const hits = raycaster.intersectObjects(pickables, false);
-  return hits.length ? hits[0].object.userData.nodeIdx : null;
+  const hits = raycaster.intersectObject(ballsMesh, false);
+  if (!hits.length) return null;
+  const fi = hits[0].faceIndex;
+  const node = ballFaceToNode?.[fi];
+  return node === undefined ? null : node;
 }
 
 function onSelect(hand) {
@@ -217,7 +260,7 @@ function tryWalk(idx) {
   if (node.kind === 'word' && !node.collected) {
     node.collected = true;
     state.collected.push(node.word);
-    state.score += SCORE.word;
+    state.score += scoreForWalk({ firstCollect: true });
     sfx.collect(node.word.length);
   } else {
     sfx.step(state.visited.length);
@@ -274,13 +317,14 @@ function startRound(diffKey) {
 
 function endRound(win) {
   state.mode = win ? 'ended' : 'ended-fail';
-  if (win) {
-    state.score += SCORE.win + Math.max(0, state.stepsLeft) * SCORE.stepLeft;
-    sfx.win();
-  } else {
-    sfx.fail();
-  }
-  if (state.collected.length >= 10) state.score += 50;
+  // 计分统一由 rules.mjs 计算（与单元测试、2D/VR 结算面板共用同一份规则）
+  state.score += finalScore({
+    win,
+    stepsLeft: state.stepsLeft,
+    wordCount: new Set(state.collected).size,
+    unlimited: state.unlimited,
+  });
+  if (win) sfx.win(); else sfx.fail();
   if (state.score > state.best) {
     state.best = state.score;
     localStorage.setItem('rw-best', String(state.best));
@@ -292,36 +336,31 @@ function endRound(win) {
   updateHud();
 }
 
-// 结算数据（2D 海报与 VR 面板共用）
+// 结算数据（2D 海报与 VR 面板共用；纯计算委托给 rules.buildResult）
 function resultData(win) {
-  const pathWords = state.visited
+  const visitedWords = state.visited
     .map((i) => state.graph.nodes[i])
     .filter((n) => n.kind === 'word')
     .map((n) => n.word);
-  const uniq = [...new Set(pathWords)];
-  const poem = uniq.length
-    ? uniq.slice(0, 8).join(' · ') + (uniq.length > 8 ? ' …' : '')
-    : '（一条无言的路）';
-  const achievements = [];
-  if (win) achievements.push(ACHIEVEMENTS.reach);
-  if (win && state.stepsLeft >= 5) achievements.push(ACHIEVEMENTS.calm);
-  if (state.collected.length >= 10) achievements.push(ACHIEVEMENTS.pearls);
-  if (!win && state.collected.length >= 6) achievements.push(ACHIEVEMENTS.stroll);
-  if (state.unlimited) achievements.push(ACHIEVEMENTS.egg);
-  return {
-    win, poem,
-    quote: state.flavor || pickQuote(),
-    score: state.score, best: state.best,
-    words: uniq,
+  const r = buildResult({
+    win,
+    visitedWords,
+    collected: state.collected,
     steps: state.visited.length - 1,
-    achievements,
+    stepsLeft: state.stepsLeft,
+    unlimited: state.unlimited,
+    quote: state.flavor,
+  });
+  return {
+    win,
+    poem: r.poem,
+    quote: r.quote,
+    score: state.score,
+    best: state.best,
+    words: r.words,
+    steps: r.steps,
+    achievements: r.achievements,
   };
-}
-
-function pickQuote() {
-  const f = FLAVORS[Math.floor(Math.random() * FLAVORS.length)];
-  const list = QUOTES[f];
-  return { flavor: f, text: list[Math.floor(Math.random() * list.length)] };
 }
 
 // ---------------- 2D DOM ----------------
@@ -451,6 +490,21 @@ let graphRoot = null;
 
 const ekey = (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`);
 
+// 节点半径 / 配色 / 颜色换算（合批几何用纯数值，不再依赖 three 的 Color 对象）
+function nodeRadius(nd) {
+  if (nd.kind === 'goal') return NODE_SCALE * 1.9;
+  if (nd.kind === 'start') return NODE_SCALE * 1.4;
+  return NODE_SCALE;
+}
+function nodeColor(nd, skin) {
+  if (nd.kind === 'start') return skin.start;
+  if (nd.kind === 'goal') return skin.goal;
+  return skin.word;
+}
+function hexToRgb(hex) {
+  return [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
+}
+
 function rebuildGraphScene() {
   if (!graphRoot) {
     graphRoot = new THREE.Group();
@@ -461,41 +515,55 @@ function rebuildGraphScene() {
   lineGroup = new THREE.Group();
   graphRoot.add(nodeGroup, lineGroup);
   pickables = [];
-  lineObjs.clear();
 
   const skin = SKINS[state.skin];
   const { nodes, edges } = state.graph;
 
-  // 边线：每条边独立材质（走过的边要单独染色，共享材质会全图变色）
-  for (const [a, b] of edges) {
-    const geo = new THREE.BufferGeometry().setFromPoints([nodes[a].pos, nodes[b].pos]);
-    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: skin.line, transparent: true, opacity: 0.75 }));
-    lineGroup.add(line);
-    lineObjs.set(ekey(a, b), line);
-  }
+  // ── 边：全部合批成 1 个 LineSegments（顶点色区分墨线/轨迹） ──
+  const eg = buildEdgeGeometry(nodes, edges);
+  edgeColors = eg.colors;
+  edgeGeo = new THREE.BufferGeometry();
+  edgeGeo.setAttribute('position', new THREE.BufferAttribute(eg.positions, 3));
+  edgeGeo.setAttribute('color', new THREE.BufferAttribute(edgeColors, 3));
+  edgeLines = new THREE.LineSegments(
+    edgeGeo,
+    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75 })
+  );
+  lineGroup.add(edgeLines);
 
-  // 节点
+  edgeIndexByKey.clear();
+  edgeKeys = edges.map(([a, b], k) => {
+    const key = ekey(a, b);
+    edgeIndexByKey.set(key, k);
+    return key;
+  });
+
+  // ── 词球：全部合批成 1 个 Mesh（光照烘焙进顶点色，运行时零光照成本） ──
+  const bg = buildNodeSpheres(nodes, {
+    segments: 14,
+    rings: 10,
+    radiusOf: (i) => nodeRadius(nodes[i]),
+    colorOf: (i) => hexToRgb(nodeColor(nodes[i], skin)),
+  });
+  ballNormals = bg.normals;
+  ballRanges = bg.ranges;
+  ballFaceToNode = bg.faceToNode;
+  ballsGeo = new THREE.BufferGeometry();
+  ballsGeo.setAttribute('position', new THREE.BufferAttribute(bg.positions, 3));
+  ballsGeo.setAttribute('normal', new THREE.BufferAttribute(bg.normals, 3));
+  ballsGeo.setAttribute('color', new THREE.BufferAttribute(bg.colors, 3));
+  ballsGeo.setIndex(new THREE.BufferAttribute(bg.indices, 1));
+  ballsMesh = new THREE.Mesh(ballsGeo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  nodeGroup.add(ballsMesh);
+  pickables = [ballsMesh];
+
+  // ── 每节点仍保留一个 Group，只装词标签与脉冲光环（球体已合批） ──
   for (let i = 0; i < nodes.length; i++) {
     const nd = nodes[i];
     const g = new THREE.Group();
     g.position.copy(nd.pos);
 
-    const color = nd.kind === 'start' ? skin.start : nd.kind === 'goal' ? skin.goal : skin.word;
-    const r = nd.kind === 'goal' ? NODE_SCALE * 1.9 : nd.kind === 'start' ? NODE_SCALE * 1.4 : NODE_SCALE;
-    const ball = new THREE.Mesh(
-      new THREE.SphereGeometry(r, 20, 14),
-      new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.6,
-        metalness: 0.0,
-        // 词球弱发光防过曝；起点/终点保持亮
-        emissive: color,
-        emissiveIntensity: nd.kind === 'word' ? 0.05 : 0.3,
-      })
-    );
-    ball.userData.nodeIdx = i;
-    g.add(ball);
-
+    const r = nodeRadius(nd);
     // 词标签：canvas 按字数裁宽，避免大片透明空边导致显小
     const label = makeTextSprite(nd.word, {
       size: nd.kind === 'goal' ? 84 : 64,
@@ -503,7 +571,6 @@ function rebuildGraphScene() {
       glow: nd.kind !== 'word',
     });
     label.position.y = r + 0.17;
-    // 精灵贴图已按字数裁宽：scale 保持贴图纵横比（高 0.19m）
     label.scale.set(0.19 * (label.material.map.image.width / label.material.map.image.height), 0.19, 1);
     g.add(label);
 
@@ -516,10 +583,9 @@ function rebuildGraphScene() {
     halo.visible = false;
     g.add(halo);
 
-    g.userData = { nodeIdx: i, ball, halo, label, baseLabelColor: '#f2f6ff' };
+    g.userData = { nodeIdx: i, halo, label };
     nodeGroup.add(g);
     nd._obj = g;
-    pickables.push(ball);
   }
 
   // 终点光柱信标
@@ -533,39 +599,44 @@ function rebuildGraphScene() {
 }
 
 function refreshAdjacencyVisuals() {
-  if (!state.graph) return;
+  if (!state.graph || !ballsGeo) return;
   const skin = SKINS[state.skin];
   const adj = adjacentOf(state.at);
   const canWalk = state.mode === 'playing' && (state.unlimited || state.stepsLeft > 0);
+
+  // 词球：只回写受影响的顶点色，不改对象数量
+  const colors = ballsGeo.attributes.color.array;
   for (let i = 0; i < state.graph.nodes.length; i++) {
     const nd = state.graph.nodes[i];
     if (!nd._obj) continue;
     const isAdj = adj.includes(i);
     const isHere = i === state.at;
     nd._obj.userData.halo.visible = isAdj && canWalk;
-    const ball = nd._obj.userData.ball;
-    if (isHere) {
-      ball.material.emissiveIntensity = 1.0;
-      ball.scale.setScalar(1.25);
-    } else if (isAdj) {
-      ball.material.emissiveIntensity = 0.7;
-      ball.scale.setScalar(1.08);
-    } else {
-      ball.material.emissiveIntensity = nd.kind === 'word' ? 0.18 : 0.5;
-      ball.scale.setScalar(nd.collected ? 0.82 : 1.0);
+
+    let color = nodeColor(nd, skin);
+    let brightness = 1;
+    if (nd.kind === 'word' && nd.collected && !isHere) {
+      color = skin.wordVisited;      // 收录过的词转灰，给玩家"已采"的反馈
+      brightness = 0.8;
     }
+    if (isHere) brightness = 1.55;   // 当前节点最亮
+    else if (isAdj) brightness = 1.22; // 可走节点次亮
+    recolorNode(colors, ballNormals, ballRanges, i, { color: hexToRgb(color), brightness });
+
     nd._obj.userData.label.material.opacity = nd.collected && nd.kind === 'word' ? 0.45 : 1;
-    if (nd.kind === 'word' && nd.collected) {
-      ball.material.color.setHex(skin.wordVisited);
-      ball.material.emissive.setHex(skin.wordVisited);
-    }
   }
-  // 边：全部恢复墨色，走过的边染上轨迹色
-  for (const line of lineObjs.values()) line.material.color.setHex(skin.line);
+  ballsGeo.attributes.color.needsUpdate = true;
+
+  // 边：先铺墨色，再把走过的边染成轨迹色
+  const trail = new Set();
   for (let i = 0; i + 1 < state.visited.length; i++) {
-    const line = lineObjs.get(ekey(state.visited[i], state.visited[i + 1]));
-    if (line) line.material.color.setHex(skin.trail);
+    const k = edgeIndexByKey.get(ekey(state.visited[i], state.visited[i + 1]));
+    if (k !== undefined) trail.add(k);
   }
+  const lineC = hexToRgb(skin.line);
+  const trailC = hexToRgb(skin.trail);
+  paintEdges(edgeColors, edgeKeys.length, (k) => (trail.has(k) ? trailC : lineC));
+  edgeGeo.attributes.color.needsUpdate = true;
 }
 
 // ---------------- 文本精灵 ----------------
