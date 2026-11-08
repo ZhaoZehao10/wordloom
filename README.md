@@ -24,6 +24,10 @@
 
 ## 运行
 
+**在线试玩**：<https://ZhaoZehao10.github.io/wordloom/rw/>（HTTPS，Pico 浏览器可直接进 VR）
+
+本地运行：
+
 ```powershell
 node make-cert.mjs        # 首次：生成本地 CA + 服务器证书（cert/）
 node server.mjs           # HTTPS 8543 / HTTP 8181
