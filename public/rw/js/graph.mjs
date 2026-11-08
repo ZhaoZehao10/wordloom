@@ -6,6 +6,8 @@
 import * as THREE from '../../vendor/three.module.min.js';
 
 // 距离用平方比较，避免开方
+const MIN_NODE_GAP = 1.35;   // 旁支词节点最小间距（米），防止词牌叠字
+
 function rng(seed) {
   let s = seed >>> 0;
   return () => {
@@ -63,19 +65,25 @@ export function generateGraph({ words, steps, seed = Date.now(), wordCount = 22 
     const x = trunk[Math.min(trunk.length - 1, Math.floor(t * trunkLen))].x * (0.3 + rand() * 0.4) + lateral;
     const y = 0.75 + rand() * 1.5;
     const p = new THREE.Vector3(x, y, z);
-    // 最小间距：主干节点 0.9m（主干本身约 0.78m 间距），旁支间 1.35m 防词牌重叠
-    const minGap = p.distanceTo(new THREE.Vector3(0, p.y, 0)) < 0.1 ? 0 : 1.35;
-    if (placed.some((q) => q.distanceToSquared(p) < minGap * minGap)) continue;
+    // 旁支词节点彼此/与主干的最小间距：1.35m（词牌宽约 0.5m，低于此会叠字）
+    if (placed.some((q) => q.distanceToSquared(p) < MIN_NODE_GAP * MIN_NODE_GAP)) continue;
     placed.push(p);
     nodes.push({ word: words[Math.floor(rand() * words.length)], pos: p, kind: 'word' });
     k++;
   }
 
   // —— 旁支边：相对邻居图（RNG）：u–v 有边当且仅当月牙区内无第三点 ——
+  // 注意：adj / edgeSet 必须先由「已存在的主干边」播种。
+  // 早期版本漏了这一步，导致 degree 失真、孤立节点误判、连通性自检恒为假阳性。
   const n = nodes.length;
-  const adj = Array.from({ length: n }, () => []);
   const key = (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`);
-  const edgeSet = new Set(edges.map(([a, b]) => key(a, b)));
+  const adj = Array.from({ length: n }, () => []);
+  const edgeSet = new Set();
+  for (const [a, b] of edges) {
+    adj[a].push(b);
+    adj[b].push(a);
+    edgeSet.add(key(a, b));
+  }
   const addEdge = (a, b) => {
     const k = key(a, b);
     if (edgeSet.has(k) || a === b) return;
