@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=640, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="Qualcomm Snapdragon XR2 Platform">
+<meta name="theme-color" content="#0b1020">
+<title>随机游走 VR · 1024</title>
+<link rel="stylesheet" href="rw.css"></head>
+<body>
+<canvas id="c3d"></canvas>
+
+<!-- 2D 引导面板（平板预览 / 进入 VR 前说明） -->
+<div id="intro">
+  <div class="card">
+    <h1 id="title-h">随机游走</h1>
+    <p class="sub">RANDOM WALK · 标记独属于你的思想路径 · Pico Neo3 WebXR</p>
+    <div class="stats">
+      <span>第 <b id="hud-round">1</b> 局</span><i>·</i>
+      <span>收录 <b id="hud-words">0</b> 词</span><i>·</i>
+      <span>累计 <b id="hud-score">0</b> 分</span><i>·</i>
+      <span>最佳 <b id="hud-best">0</b></span>
+    </div>
+    <ul>
+      <li><b>规则</b> — 从朱砂「出发」沿墨线走到相邻节点，每走一步耗一步数</li>
+      <li><b>目标</b> — 步数耗尽前抵达赤金色的「<b class="gold">1024</b>」，即成功</li>
+      <li><b>操作</b> — 手柄射线瞄准带<b>脉冲光环</b>的节点，扣扳机即走过去</li>
+      <li><b>收录</b> — 沿途词会被收进「思想路径」，走完生成你的路径海报</li>
+      <li><b>彩蛋</b> — 连点标题七次…；键盘敲出 1024…（你试试看）</li>
+    </ul>
+    <div class="row">
+      <button id="start-btn" class="primary">开始游走 ▸</button>
+    </div>
+    <div class="row small-row">
+      <span class="mini-label">难度</span>
+      <button class="diff-pick" data-diff="easy">悠然 16步</button>
+      <button class="diff-pick" data-diff="normal">标准 12步</button>
+      <button class="diff-pick" data-diff="hard">紧绷 9步</button>
+    </div>
+    <div class="row small-row">
+      <button id="skin-btn" class="ghost">◍ 皮肤：墨</button>
+      <button id="timbre-btn" class="ghost">♫ 音色：木鱼</button>
+      <button id="mute-btn" class="ghost">🔊 音效</button>
+    </div>
+    <p class="hint">桌面模式可预览玩法；头显内才有完整体验（ENTER VR 按钮）</p>
+    <p class="hint" style="margin-top:6px">本机还有另一款：<a href="/" style="color:#6cd0ff">🧩 3D 拼图 VR</a></p>
+  </div>
+</div>
+
+<!-- HUD（进入 VR 后 2D HUD 隐藏，由 VR 内 3D 面板接管） -->
+<div id="hud" class="hidden">
+  <div class="hud-chip">步数 <b id="hud-steps">12</b></div>
+  <div class="hud-chip">收录 <b id="hud-words2">0</b> 词</div>
+  <div class="hud-chip"><b id="hud-score2">0</b> 分 · 最佳 <b id="hud-best2">0</b></div>
+</div>
+
+<!-- 胜负结算（2D 平板模式） -->
+<div id="end" class="hidden">
+  <div class="card end-card">
+    <div id="end-icon">🏁</div>
+    <h2 id="end-title">抵达 1024</h2>
+    <p class="poem" id="end-poem">—</p>
+    <p class="quote"><span id="end-quote">—</span><span id="end-quote-flavor" class="flavor">—— 哲思 一言</span></p>
+    <p class="stats-line" id="end-stats">—</p>
+    <div id="end-ach" class="ach-row"></div>
+    <p class="words" id="end-words">—</p>
+    <div class="row">
+      <button id="requote-btn" class="ghost">↻ 换一句</button>
+      <button id="copy-btn" class="ghost">复制路径文案</button>
+      <button id="again-btn" class="primary">再走一条 ▸</button>
+    </div>
+  </div>
+</div>
+
+<div id="egg-flash" class="hidden">✦ 1024 ✦<small>步数限制已解除 · 本局无限步</small></div>
+
+<script type="module" src="js/main.mjs"></script>
+</body>
+</html>
