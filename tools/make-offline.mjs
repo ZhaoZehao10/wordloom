@@ -46,9 +46,11 @@ const vrButtonSrc = stripModule(read(PUB, 'vendor', 'VRButton.js'));
 
 const gameSrc = [
   ['data', 'rw/js/data.mjs'],
+  ['rules', 'rw/js/rules.mjs'],       // 依赖 data
+  ['geometry', 'rw/js/geometry.mjs'], // 纯数组数学，无依赖
   ['graph', 'rw/js/graph.mjs'],
-  ['audio', 'rw/js/audio.mjs'],
-  ['main', 'rw/js/main.mjs'],
+  ['audio', 'rw/js/audio.mjs'],       // 依赖 data
+  ['main', 'rw/js/main.mjs'],         // 依赖以上全部
 ].map(([tag, rel]) => `// ===== ${rel} =====\n${stripModule(read(PUB, ...rel.split('/')))}`).join('\n');
 
 // graph.mjs / main.mjs 里 `import * as THREE` 已剥掉；它们引用的 THREE 来自上面全局。
