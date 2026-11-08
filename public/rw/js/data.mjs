@@ -1,6 +1,5 @@
-// 拾径 Wordloom — 数据包：词库 / 一言 / 皮肤 / 音色 / 成就
-// 原版：网页「随机游走 · 标记独属于你的思想路径」1024 程序员节彩蛋
-// 原始 JS 拿不到（页面返回渲染后的文本），词库与一言按原版风味重写。
+// 拾径 · Wordloom — 数据包：词库 / 一言 / 皮肤 / 音色 / 成就 / 难度
+// 全部为可自由替换的静态数据，与渲染逻辑解耦。
 
 export const WORDS = [
   '字节', '递归', '光', '熵', '诗', '梦', '回声', '奇点', '量子', '星尘',
@@ -70,7 +69,7 @@ export const SKINS = {
   },
 };
 
-// 音色：换音色等于换乐器（原版特色）
+// 音色：换音色等于换乐器
 export const TIMBRES = {
   wood:  { name: '木鱼', step: { type: 'triangle', gain: 0.10 }, collect: { type: 'triangle', gain: 0.12 }, ui: { type: 'square', gain: 0.05 } },
   synth: { name: '电子', step: { type: 'square', gain: 0.07 }, collect: { type: 'sawtooth', gain: 0.08 }, ui: { type: 'square', gain: 0.05 } },
