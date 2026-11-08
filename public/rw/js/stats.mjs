@@ -103,3 +103,44 @@ export function summaryLine(summary) {
   const pct = Math.round(summary.winRate * 100);
   return `历史 ${summary.rounds} 局 · 胜率 ${pct}% · 最佳 ${summary.bestScore}`;
 }
+
+// ---------------- 词集收藏（跨局元进度） ----------------
+// 玩家在任意一局收录过的词永久进入「词集」，用来给出长期目标：
+// 词库总量有限，迟早能集满，集满本身就是一个成就式目标。
+
+/** 解析词集（localStorage 原文）。坏数据一律当空集，避免污染。 */
+export function parseCollection(raw) {
+  if (typeof raw !== 'string' || !raw) return [];
+  try {
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data)) return [];
+    return [...new Set(data.filter((w) => typeof w === 'string' && w.length > 0))];
+  } catch {
+    return [];
+  }
+}
+
+export function serializeCollection(collection) {
+  const list = Array.isArray(collection) ? [...new Set(collection.filter((w) => typeof w === 'string' && w.length))] : [];
+  return JSON.stringify(list);
+}
+
+/** 新增收录：返回 { collection, added }（added 为本局真正新收集的词）。 */
+export function addToCollection(collection, words) {
+  const set = new Set(Array.isArray(collection) ? collection : []);
+  const added = [];
+  for (const w of Array.isArray(words) ? words : []) {
+    if (typeof w !== 'string' || !w.length || set.has(w)) continue;
+    set.add(w);
+    added.push(w);
+  }
+  return { collection: [...set], added };
+}
+
+/** 词集进度：{ collected, total, ratio }。total 取词库规模，避免超过 100%。 */
+export function collectionProgress(collection, totalWords) {
+  const total = Math.max(1, Number.isFinite(totalWords) ? totalWords : 1);
+  const n = Math.min(new Set(Array.isArray(collection) ? collection : []).size, total);
+  return { collected: n, total, ratio: Math.round((n / total) * 1000) / 1000 };
+}
+

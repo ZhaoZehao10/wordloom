@@ -303,7 +303,43 @@ ok(stats.mode === 'playing', '重开后回到游玩态');
 ok(stats.savedDiff === 'hard', '难度选择已持久化（rw-diff）');
 ok(stats.savedHistoryLen === stats.afterCount, '战绩持久化条数与内存一致');
 
-console.log('\n[11] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[11] 词集收藏（跨局元进度）');
+const coll = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 300));
+  const before = window.__rw.collectionInfo();
+  const adj = {};
+  for (const [a, b] of st.graph.edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
+  const waitGlide = async () => { while (st.glide) await new Promise(r => setTimeout(r, 60)); };
+  await waitGlide();
+  let cur = st.at;
+  for (let i = 0; i < 4 && st.mode === 'playing'; i++) {
+    const un = adj[cur].filter((v) => !st.graph.nodes[v].collected);
+    const next = un.length ? un[0] : adj[cur][0];
+    if (next === undefined) break;
+    window.__rw.tryWalk(next, 'right');
+    await waitGlide();
+    cur = st.at;
+  }
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  const after = window.__rw.collectionInfo();
+  return {
+    before: before.count, after: after.count, roundNew: after.roundNew.length,
+    persisted: after.persisted, prog: after.progress,
+    hud: document.getElementById('hud-collection').textContent + '/' + document.getElementById('hud-collection-total').textContent,
+    hist: document.getElementById('end-history').textContent,
+  };
+})()`);
+ok(coll.after >= coll.before, `词集只增不减（${coll.before}→${coll.after}）`);
+ok(coll.roundNew === coll.after - coll.before, `本局新词数 = 词集增量（${coll.roundNew}）`);
+ok(coll.persisted === coll.after, '词集已持久化且与内存一致');
+ok(coll.hud === `${coll.after}/60`, `引导页词集进度显示 ${coll.hud}`);
+ok(coll.hist.includes('词集'), `结算页显示词集进度「${coll.hist}」`);
+ok(coll.prog.collected <= coll.prog.total && coll.prog.ratio <= 1, '词集进度不超过 100%', JSON.stringify(coll.prog));
+
+console.log('\n[12] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

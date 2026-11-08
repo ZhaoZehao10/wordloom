@@ -16,6 +16,7 @@ import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
+  parseCollection, serializeCollection, addToCollection, collectionProgress,
 } from './stats.mjs';
 
 // ---------------- 常量 ----------------
@@ -39,6 +40,8 @@ const state = {
   score: 0,
   best: parseInt(localStorage.getItem('rw-best') || '0', 10) || 0,
   history: parseHistory(localStorage.getItem('rw-history') || ''),  // 最近若干局战绩
+  collection: parseCollection(localStorage.getItem('rw-collection') || ''), // 跨局词集
+  roundNew: [],                 // 本局新收录（词集里原本没有的）
   diff: 'normal',               // 本局难度 key
   round: 0,
   skin: localStorage.getItem('rw-skin') || 'ink',
@@ -140,6 +143,13 @@ window.__rw = {
   debugEndAction: (action) => handleEndPanelAction(action),
   debugRerollQuote: () => { rerollQuote(); return state.flavor; },
   debugQuote: () => state.flavor,
+  // 词集（跨局元进度）
+  collectionInfo: () => ({
+    count: state.collection.length,
+    progress: collectionProgress(state.collection, WORDS.length),
+    roundNew: state.roundNew.slice(),
+    persisted: parseCollection(localStorage.getItem('rw-collection') || '').length,
+  }),
 }; // 测试钩子
 
 
@@ -275,7 +285,21 @@ function onSelect(hand) {
   }
   const target = aimedNode(hand);
   if (target == null) return;
-  tryWalk(target);
+  tryWalk(target, hand);
+}
+
+// 手柄震动反馈（Pico 手柄支持 haptic pulse；不支持时静默跳过）
+function pulse(hand, intensity = 0.4, ms = 40) {
+  if (!hand) return;
+  try {
+    const session = renderer.xr.getSession?.();
+    if (!session) return;
+    for (const src of session.inputSources) {
+      if ((src.handedness || 'none') !== hand) continue;
+      const act = src.gamepad?.hapticActuators?.[0];
+      if (act && typeof act.pulse === 'function') act.pulse(intensity, ms);
+    }
+  } catch { /* 机型不支持震动 */ }
 }
 
 // ---------------- 走子 ----------------
@@ -289,7 +313,7 @@ function adjacentOf(idx) {
   return out;
 }
 
-function tryWalk(idx) {
+function tryWalk(idx, hand = null) {
   if (state.mode !== 'playing') return;
   // 滑翔中：允许预输入——目标必须是目的地（state.at）的相邻节点，到达后自动走
   if (state.glide) {
@@ -312,9 +336,18 @@ function tryWalk(idx) {
     node.collected = true;
     state.collected.push(node.word);
     state.score += scoreForWalk({ firstCollect: true });
+    // 词集（跨局）：新词才算「首次收集」
+    const { collection, added } = addToCollection(state.collection, [node.word]);
+    state.collection = collection;
+    if (added.length) {
+      state.roundNew.push(...added);
+      localStorage.setItem('rw-collection', serializeCollection(collection));
+    }
     sfx.collect(node.word.length);
+    pulse(hand, 0.55, 55);
   } else {
     sfx.step(state.visited.length);
+    pulse(hand, 0.22, 25);
   }
 
   beginGlide(idx);
@@ -348,6 +381,7 @@ function startRound(diffKey) {
   state.at = 0;
   state.visited = [0];
   state.collected = [];
+  state.roundNew = [];
   state.score = 0;
   state.flavor = pickQuote();                    // 回合内固定，结算页可手动换
   state.glide = null;
@@ -659,9 +693,11 @@ function applySkinLook() {
 }
 
 function updateHud() {
-  // 双份 HUD id：intro 卡片里一套（round/words/score/best），游戏 HUD 一套
+  // 双份 HUD：intro 卡片一套（局数/词集/累计/最佳），游戏内 HUD 一套
+  const prog = collectionProgress(state.collection, WORDS.length);
   $('hud-round').textContent = String(state.round + 1);
-  $('hud-words').textContent = String(state.collected.length);
+  $('hud-collection').textContent = String(prog.collected);
+  $('hud-collection-total').textContent = String(prog.total);
   $('hud-score').textContent = String(state.score);
   $('hud-best').textContent = String(state.best);
   $('hud-steps').textContent = state.unlimited ? '∞' : String(state.stepsLeft);
@@ -679,8 +715,12 @@ function fillEnd() {
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${r.quote.flavor} 一言`;
   $('end-stats').textContent = `${r.diffName} · ${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分 · 最佳 ${r.best}`;
-  $('end-history').textContent = r.historyLine || '';
-  $('end-history').style.display = r.historyLine ? '' : 'none';
+  const prog = collectionProgress(state.collection, WORDS.length);
+  $('end-history').textContent = [
+    r.historyLine,
+    `词集 ${prog.collected}/${prog.total}` + (state.roundNew.length ? `（本局新词 +${state.roundNew.length}）` : ''),
+  ].filter(Boolean).join(' · ');
+  $('end-history').style.display = $('end-history').textContent ? '' : 'none';
   $('end-ach').innerHTML = r.achievements.length
     ? r.achievements.map((a) => `<span class="ach">${a.icon} ${a.name}</span>`).join('')
     : '<span class="ach" style="opacity:.45">— 本次无成就 —</span>';

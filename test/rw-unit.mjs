@@ -20,6 +20,7 @@ import { buildMenuLayout, hitTestMenu, isSelected, drawMenu, MENU_W, MENU_H } fr
 import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
+  parseCollection, serializeCollection, addToCollection, collectionProgress,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -605,6 +606,46 @@ section('G. 本地战绩');
   // 摘要文案
   eq(summaryLine({ rounds: 0 }), '', '无战绩时摘要为空串');
   eq(summaryLine(summarize(good)), '历史 1 局 · 胜率 100% · 最佳 10', '摘要文案格式');
+}
+
+// ═══════════════════ H. 词集收藏 ═══════════════════
+
+section('H. 词集收藏');
+
+{
+  // 解析容错
+  eq(parseCollection('').length, 0, '空串 → 空词集');
+  eq(parseCollection('oops').length, 0, '坏 JSON → 空词集');
+  eq(parseCollection('{"a":1}').length, 0, '非数组 → 空词集');
+  eq(parseCollection('["光","光","熵",null,3,""]').join(','), '光,熵', '去重并过滤非字符串/空串');
+  eq(parseCollection(serializeCollection(['梦', '光', '梦'])).join(','), '梦,光', '序列化往返并去重');
+  eq(serializeCollection(null), '[]', '序列化 null 安全');
+}
+
+{
+  // 新增收录
+  const r1 = addToCollection(['光'], ['熵', '光', '梦']);
+  eq(r1.added.join(','), '熵,梦', '只有新词进入 added');
+  eq(r1.collection.sort().join(','), '光,熵,梦'.split(',').sort().join(','), '词集合并正确');
+  const r2 = addToCollection(null, ['光']);
+  eq(r2.collection.length, 1, 'collection 为 null 时按空处理');
+  eq(addToCollection(['光'], []).added.length, 0, '空输入不新增');
+  eq(addToCollection(['光'], ['光']).added.length, 0, '重复词不重复计数');
+  // 脏元素
+  eq(addToCollection([], ['', null, '光', 3]).added.length, 1, '脏元素被忽略');
+}
+
+{
+  // 进度
+  eq(collectionProgress([], 60), { collected: 0, total: 60, ratio: 0 }, '空词集进度 0');
+  eq(collectionProgress(['光', '熵'], 60).ratio, 0.033, '部分进度比例');
+  eq(collectionProgress(['光', '熵'], 60).collected, 2, '已收集数');
+  eq(collectionProgress(new Array(80).fill('光'), 60).collected, 1, '重复词只算一次');
+  const over = collectionProgress(Array.from({ length: 80 }, (_, i) => `w${i}`), 60);
+  eq(over.collected, 60, '超过词库上限时封顶，不出现 >100%');
+  eq(over.ratio, 1, '集满时比例恰为 1');
+  eq(collectionProgress([], 0).total, 1, '非法 total 兜底为 1（避免除零）');
+  eq(collectionProgress(null, 60).collected, 0, 'null 词集安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
