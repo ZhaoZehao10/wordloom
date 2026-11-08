@@ -16,8 +16,10 @@ import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
-  parseCollection, serializeCollection, addToCollection, collectionProgress,
+  parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
 } from './stats.mjs';
+import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
+import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -48,6 +50,8 @@ const state = {
   glide: null,                  // {from, to, t} 滑翔动画
   queuedWalk: null,             // 滑翔中的预输入（到达后自动走）
   pendingEnd: null,             // 'win' | 'fail'：滑翔到达后再结算（面板不能在滑翔中出现）
+  replay: null,                 // 路径回放 { path, t0, duration }
+  replayPrevMode: null,         // 回放前的结算态，用于停止后恢复
   flavor: null,                 // 结算选中的一言
   eggTyped: '',                 // 1024 键盘彩蛋
   titleTaps: 0,                 // 标题连点计数
@@ -141,6 +145,20 @@ window.__rw = {
     return endGroup ? endGroup.userData.hits.map((h) => h.userData.action) : [];
   },
   debugEndAction: (action) => handleEndPanelAction(action),
+  // 路径回放
+  debugStartReplay: () => startReplay(),
+  debugStopReplay: () => stopReplay(),
+  replayInfo: () => (state.replay ? {
+    points: state.replay.path.length,
+    duration: state.replay.duration,
+    elapsed: Math.round(performance.now() - state.replay.t0),
+    rig: { x: +rig.position.x.toFixed(3), y: +rig.position.y.toFixed(3), z: +rig.position.z.toFixed(3) },
+  } : null),
+  // 空间音效（桌面无 XR：playSpatial 会返回 false，用于验证回落逻辑）
+  debugSpatial: (opts) => {
+    const ok = playSpatial({ pos: opts?.pos || { x: 0, y: 1, z: -1 }, freq: opts?.freq || 880 });
+    return { played: ok, poolSize: pannerPool.length, hasListener: !!audioListener };
+  },
   debugRerollQuote: () => { rerollQuote(); return state.flavor; },
   debugQuote: () => state.flavor,
   // 词集（跨局元进度）
@@ -277,6 +295,8 @@ function aimedNode(hand) {
 
 function onSelect(hand) {
   audio.unlock();
+  // 回放中：扳机 = 跳过回放
+  if (state.mode === 'replaying') { stopReplay(); return; }
   // 菜单打开时，扳机优先用于点选菜单
   if (menuOpen) { menuClick(hand); return; }
   if (state.mode !== 'playing') {
@@ -302,6 +322,73 @@ function pulse(hand, intensity = 0.4, ms = 40) {
       if (act && typeof act.pulse === 'function') act.pulse(intensity, ms);
     }
   } catch { /* 机型不支持震动 */ }
+}
+
+// ---------------- 空间音效（词节点方位感） ----------------
+// 2D 音效没有方位；这里用 PositionalAudio 把「收词」声定位到那个词节点上，
+// 声音会随你转头而移到左/右耳。PCM 由 spatial.mjs 纯函数合成，无音频素材。
+
+const SPATIAL_POOL = 6;
+let audioListener = null;
+let pannerPool = [];
+const toneBuffers = new Map();   // toneKey → AudioBuffer
+
+function ensureSpatial() {
+  if (audioListener || !renderer) return !!audioListener;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    audioListener = new THREE.AudioListener();
+    audioListener.context = ctx;
+    camera.add(audioListener);          // 听者跟随头部
+    for (let i = 0; i < SPATIAL_POOL; i++) {
+      const panner = new THREE.PositionalAudio(audioListener);
+      panner.setRefDistance(1.2);
+      panner.setRolloffFactor(1.1);
+      panner.setDistanceModel('inverse');
+      panner.setMaxDistance(18);
+      pannerPool.push(panner);
+      scene.add(panner);                // 播放前再挪到节点位置
+    }
+    return true;
+  } catch {
+    audioListener = null;
+    return false;
+  }
+}
+
+function toneBuffer(opts) {
+  const key = toneKey(opts);
+  if (toneBuffers.has(key)) return toneBuffers.get(key);
+  const ctx = audioListener?.context;
+  if (!ctx) return null;
+  const pcm = renderTonePCM({ sampleRate: ctx.sampleRate, ...opts });
+  const buf = ctx.createBuffer(1, pcm.length, ctx.sampleRate);
+  buf.copyToChannel(pcm, 0);
+  toneBuffers.set(key, buf);
+  return buf;
+}
+
+/**
+ * 在指定世界坐标播一声。返回是否真的走了空间音效（false 时调用方回落到 2D 音效）。
+ * 只在 VR 里启用：桌面模式下听者与相机不随头动，空间化没有意义还多一份开销。
+ */
+function playSpatial({ pos, freq = 880, type = 'triangle', gain = 0.5, duration = 0.14 }) {
+  if (!renderer.xr.isPresenting) return false;
+  if (!pos || !ensureSpatial()) return false;
+  try {
+    const buf = toneBuffer({ freq, type, gain, duration });
+    if (!buf) return false;
+    const panner = pannerPool.find((p) => !p.isPlaying) || pannerPool[0];
+    if (!panner) return false;
+    panner.position.set(pos.x ?? 0, pos.y ?? 0, pos.z ?? 0);
+    if (panner.isPlaying) panner.stop();
+    panner.setBuffer(buf);
+    panner.play();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ---------------- 走子 ----------------
@@ -345,13 +432,19 @@ function tryWalk(idx, hand = null) {
       state.roundNew.push(...added);
       localStorage.setItem('rw-collection', serializeCollection(collection));
     }
-    sfx.collect(node.word.length);
+    // 收词：VR 里定位到该词节点（方位感），桌面/不支持时回落 2D 音效
+    const spatial = playSpatial({
+      pos: node.pos, freq: stepFreq(node.word.length + 2) * 2, type: 'triangle', gain: 0.55, duration: 0.16,
+    });
+    if (!spatial) sfx.collect(node.word.length);
     pulse(hand, 0.55, 55);
   } else {
-    sfx.step(state.visited.length);
+    const spatial = playSpatial({
+      pos: node.pos, freq: stepFreq(state.visited.length), type: 'sine', gain: 0.4, duration: 0.12,
+    });
+    if (!spatial) sfx.step(state.visited.length);
     pulse(hand, 0.22, 25);
   }
-
   beginGlide(idx);
   refreshAdjacencyVisuals();
   updateHud();
@@ -453,6 +546,9 @@ function resultData(win) {
     stepsLeft: state.stepsLeft,
     unlimited: state.unlimited,
     quote: state.flavor,
+    collectionSize: state.collection.length,
+    diffsWon: diffsWon(state.history),
+    lexiconTotal: WORDS.length,
   });
   return {
     win,
@@ -466,6 +562,42 @@ function resultData(win) {
     diffName: (DIFFICULTIES.find((d) => d.key === state.diff) || DIFFICULTIES[1]).name,
     historyLine: summaryLine(summarize(state.history)),
   };
+}
+
+// ---------------- 路径回放（结算后沿足迹巡览） ----------------
+
+function startReplay() {
+  if (!state.graph) return false;
+  if (state.mode !== 'ended' && state.mode !== 'ended-fail') return false;
+  const path = buildReplayPath(state.visited, state.graph.nodes, { height: 0 });
+  if (path.length < 2) return false;
+  state.replayPrevMode = state.mode;
+  state.replay = { path, t0: performance.now(), duration: replayDuration(path) };
+  state.mode = 'replaying';
+  state.glide = null;
+  state.pendingEnd = null;
+  closeEndPanel();
+  $('end').classList.add('hidden');
+  $('replay-tip').classList.remove('hidden');
+  rig.position.set(path[0].x, path[0].y, path[0].z);
+  sfx.ui();
+  return true;
+}
+
+function stopReplay() {
+  if (!state.replay) return false;
+  const last = state.replay.path[state.replay.path.length - 1];
+  state.replay = null;
+  rig.position.set(last.x, last.y, last.z);
+  state.mode = state.replayPrevMode || 'ended';
+  state.replayPrevMode = null;
+  $('replay-tip').classList.add('hidden');
+  if (state.mode === 'ended' || state.mode === 'ended-fail') {
+    $('end').classList.remove('hidden');
+    showEndPanel(state.mode === 'ended');
+  }
+  sfx.ui();
+  return true;
 }
 
 // ---------------- 海报导出（对齐原版「下载海报 PNG」） ----------------
@@ -671,6 +803,8 @@ function wire2D() {
   };
   $('poster-btn').onclick = () => { sfx.ui(); downloadPoster(); };
   $('again-btn').onclick = () => { sfx.ui(); startRound(state.pendingDiff); };
+  $('replay-btn').onclick = () => { startReplay(); };
+  $('replay-tip').onclick = () => { stopReplay(); };
   $('requote-btn').onclick = () => rerollQuote();
   $('copy-btn').onclick = () => {
     const r = resultData(state.mode === 'ended');
@@ -1032,10 +1166,10 @@ function showEndPanel(win) {
   spr.scale.set(1.0, 1.0, 1);
   spr.renderOrder = 30;
   endGroup.add(spr);
-  // 两个按钮的命中区（不可见平面）：左「换一句」右「再来一局」
+  // 三个按钮的命中区（不可见平面）：左「重放」中「换一句」右「再来一局」
   const mkHit = (x, action) => {
     const h = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.44, 0.10),
+      new THREE.PlaneGeometry(0.30, 0.10),
       new THREE.MeshBasicMaterial({ visible: false })
     );
     h.position.set(x, -0.41, 0.001);
@@ -1043,7 +1177,7 @@ function showEndPanel(win) {
     endGroup.add(h);
     return h;
   };
-  const hits = [mkHit(-0.25, 'requote'), mkHit(0.25, 'again')];
+  const hits = [mkHit(-0.3125, 'replay'), mkHit(0, 'requote'), mkHit(0.3125, 'again')];
   endGroup.userData.hits = hits;
   const cp = new THREE.Vector3();
   camera.getWorldPosition(cp);
@@ -1094,20 +1228,21 @@ function endPanelTexture(win) {
   c.font = '26px sans-serif';
   c.fillText(`— ${r.quote.flavor} —`, 256, 408);
 
-  // 两个按钮：左「换一句」右「再来一局」
-  const drawBtn = (label, cx, fill, stroke, color, bold) => {
+  // 三个按钮：重放 / 换一句 / 再来一局
+  const drawBtn = (label, cx, fill, stroke, color, bold, size = 26) => {
     c.fillStyle = fill;
     c.strokeStyle = stroke;
     c.lineWidth = 3;
-    rrect(c, cx - 100, 442, 200, 56, 16);
+    rrect(c, cx - 72, 442, 144, 56, 16);
     c.fill(); c.stroke();
     c.fillStyle = color;
-    c.font = `${bold ? 'bold ' : ''}30px "PingFang SC","Microsoft YaHei",sans-serif`;
+    c.font = `${bold ? 'bold ' : ''}${size}px "PingFang SC","Microsoft YaHei",sans-serif`;
     c.fillText(label, cx, 477);
   };
-  drawBtn('↻ 换一句', 128, 'rgba(40,52,90,0.9)', 'rgba(140,165,255,0.5)', '#cfd8ff', false);
-  drawBtn('▸ 再来一局', 384, win ? 'rgba(70,110,200,0.85)' : 'rgba(120,70,90,0.85)',
-    win ? 'rgba(150,200,255,0.9)' : 'rgba(255,150,140,0.8)', '#ffffff', true);
+  drawBtn('▶ 重放', 96, 'rgba(40,60,80,0.9)', 'rgba(120,200,190,0.6)', '#bff0e6', false, 26);
+  drawBtn('↻ 换一句', 256, 'rgba(40,52,90,0.9)', 'rgba(140,165,255,0.5)', '#cfd8ff', false, 24);
+  drawBtn('▸ 再来一局', 416, win ? 'rgba(70,110,200,0.85)' : 'rgba(120,70,90,0.85)',
+    win ? 'rgba(150,200,255,0.9)' : 'rgba(255,150,140,0.8)', '#ffffff', true, 23);
 
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1147,6 +1282,9 @@ function handleEndPanelAction(action) {
     rerollQuote();
     return true;
   }
+  if (action === 'replay') {
+    return startReplay();
+  }
   return false;
 }
 
@@ -1163,6 +1301,13 @@ function rerollQuote() {
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = performance.now() / 1000;
+
+  // 路径回放：镜头沿足迹巡览
+  if (state.replay) {
+    const r = replayAt(state.replay.path, performance.now() - state.replay.t0);
+    rig.position.set(r.pos.x, r.pos.y, r.pos.z);
+    if (r.done) stopReplay();
+  }
 
   // 滑翔（水平缓动）
   if (state.glide) {

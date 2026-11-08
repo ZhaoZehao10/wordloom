@@ -51,6 +51,8 @@ const gameSrc = [
   ['poster', 'rw/js/poster.mjs'],     // 海报绘制，依赖 DOM canvas
   ['menu', 'rw/js/menu.mjs'],         // VR 菜单布局/命中，纯函数
   ['stats', 'rw/js/stats.mjs'],       // 本地战绩统计，纯函数
+  ['spatial', 'rw/js/spatial.mjs'],   // 空间音效 PCM 合成，纯函数
+  ['replay', 'rw/js/replay.mjs'],     // 路径回放取样，纯函数
   ['graph', 'rw/js/graph.mjs'],
   ['audio', 'rw/js/audio.mjs'],       // 依赖 data
   ['main', 'rw/js/main.mjs'],         // 依赖以上全部

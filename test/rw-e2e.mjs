@@ -297,7 +297,7 @@ ok(stats.afterCount === stats.beforeCount + 1, `结算后战绩 +1（${stats.bef
 ok(stats.rounds >= 1 && stats.persisted >= 1, '战绩已写入 localStorage 并可读回', JSON.stringify(stats.rounds));
 ok(stats.historyText.includes('历史') && stats.historyText.includes('最佳'), `结算页显示历史摘要「${stats.historyText}」`);
 ok(stats.diffText.startsWith('悠然'), `结算页显示「本局难度」（第 9 节开的是悠然）「${stats.diffText}」`);
-ok(stats.actions.join(',') === 'requote,again', `VR 结算面板两个按钮：${stats.actions.join(',')}`);
+ok(stats.actions.join(',') === 'replay,requote,again', `VR 结算面板三个按钮：${stats.actions.join(',')}`);
 ok(stats.quoteChanged, '面板「换一句」能换出新一言');
 ok(stats.restartDiff === 'hard' && stats.restartSteps === 9, `「再来一局」沿用 hard（9 步），不再硬编码标准难度`);
 ok(stats.mode === 'playing', '重开后回到游玩态');
@@ -354,7 +354,66 @@ ok(panel.got === panel.collection, `已收集高亮数 = 词集数（${panel.got
 ok(panel.countText === `${panel.collection}/60`, `面板标题显示进度 ${panel.countText}`);
 ok(panel.closed, '可关闭面板');
 
-console.log('\n[13] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[13] 路径回放 / 空间音效 / 跨难度成就');
+const replay = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 250));
+  const adj = {};
+  for (const [a, b] of st.graph.edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
+  const waitGlide = async () => { while (st.glide) await new Promise(r => setTimeout(r, 60)); };
+  await waitGlide();
+  let cur = st.at;
+  for (let i = 0; i < 3; i++) {
+    const next = adj[cur][0];
+    if (next === undefined) break;
+    window.__rw.tryWalk(next);
+    await waitGlide();
+    cur = st.at;
+  }
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  const okStart = window.__rw.debugStartReplay();
+  const mode = st.mode;
+  await new Promise(r => setTimeout(r, 700));
+  const info = window.__rw.replayInfo();
+  const stopped = window.__rw.debugStopReplay();
+  return {
+    okStart, mode, info, stopped, modeAfter: st.mode,
+    btn: !!document.getElementById('replay-btn'),
+    tipHidden: document.getElementById('replay-tip').classList.contains('hidden'),
+  };
+})()`);
+ok(replay.btn, '结算页有「▶ 重放路径」按钮');
+ok(replay.okStart, '结算后可启动路径回放');
+ok(replay.mode === 'replaying', '进入回放态（replaying）');
+ok(replay.info && replay.info.points >= 3, `回放路径点数 ${replay.info?.points} ≥ 3`);
+ok(replay.info && (Math.abs(replay.info.rig.x) + Math.abs(replay.info.rig.z)) > 0.01, '回放中镜头确实在移动', JSON.stringify(replay.info?.rig));
+ok(replay.stopped && replay.modeAfter === 'ended-fail', '跳过回放后回到结算态');
+ok(replay.tipHidden, '回放结束后提示条隐藏');
+
+const spatial = await evalJs(`window.__rw.debugSpatial({ freq: 880 })`);
+ok(spatial.played === false, '桌面（无 XR）时空间音效回落，不抛异常');
+ok(spatial.poolSize === 0, '未进入 VR 不创建 panner 池（省资源）');
+
+const ach = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  st.collection = Array.from({ length: 31 }, (_, i) => 'w' + i);
+  st.history = [
+    { win: true, score: 10, steps: 3, words: 2, diff: 'easy' },
+    { win: true, score: 10, steps: 3, words: 2, diff: 'normal' },
+    { win: true, score: 10, steps: 3, words: 2, diff: 'hard' },
+  ];
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 200));
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 120));
+  return document.getElementById('end-ach').textContent;
+})()`);
+ok(ach.includes('词集三十'), `词集 ≥30 成就生效（${ach.trim().replace(/\\s+/g, ' ')}）`);
+ok(ach.includes('三途皆涉'), '三难度全胜成就生效');
+
+console.log('\n[14] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

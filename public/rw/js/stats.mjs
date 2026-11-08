@@ -144,3 +144,14 @@ export function collectionProgress(collection, totalWords) {
   return { collected: n, total, ratio: Math.round((n / total) * 1000) / 1000 };
 }
 
+/** 已获胜过的难度列表（按胜局顺序去重），用于「三途皆涉」成就。 */
+export function diffsWon(history) {
+  const out = [];
+  for (const r of Array.isArray(history) ? history : []) {
+    if (!r || r.win !== true) continue;
+    const key = typeof r.diff === 'string' && r.diff ? r.diff : 'normal';
+    if (!out.includes(key)) out.push(key);
+  }
+  return out;
+}
+

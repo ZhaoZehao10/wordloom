@@ -24,14 +24,29 @@ export function finalScore({ win, stepsLeft, wordCount, unlimited = false }) {
   return s;
 }
 
-/** 成就判定：输入全部为标量，输出成就定义数组（顺序固定，便于快照测试）。 */
-export function achievementsFor({ win, stepsLeft, wordCount, unlimited = false }) {
+/**
+ * 成就判定：输入全部为标量/数组，输出成就定义数组（顺序固定，便于快照测试）。
+ *
+ * @param collectionSize 跨局词集已收录词数（0 表示未启用元进度）
+ * @param diffsWon       已获胜过的难度 key 列表（用于「三途皆涉」）
+ * @param lexiconTotal   词库总量（用于「词汇全图」）
+ */
+export function achievementsFor({
+  win, stepsLeft, wordCount, unlimited = false,
+  collectionSize = 0, diffsWon = [], lexiconTotal = 0,
+}) {
   const out = [];
   if (win) out.push(ACHIEVEMENTS.reach);
   if (win && !unlimited && stepsLeft >= 5) out.push(ACHIEVEMENTS.calm);
   if (wordCount >= 10) out.push(ACHIEVEMENTS.pearls);
   if (!win && wordCount >= 6) out.push(ACHIEVEMENTS.stroll);
   if (unlimited) out.push(ACHIEVEMENTS.egg);
+  // —— 跨局元进度成就 ——
+  if (collectionSize >= 30) out.push(ACHIEVEMENTS.collector);
+  if (Array.isArray(diffsWon) && ['easy', 'normal', 'hard'].every((k) => diffsWon.includes(k))) {
+    out.push(ACHIEVEMENTS.allDiffs);
+  }
+  if (lexiconTotal > 0 && collectionSize >= lexiconTotal) out.push(ACHIEVEMENTS.lexicon);
   return out;
 }
 
@@ -99,6 +114,9 @@ export function buildResult({
   stepsLeft = 0,
   unlimited = false,
   quote = null,
+  collectionSize = 0,     // 跨局词集
+  diffsWon = [],          // 已获胜难度
+  lexiconTotal = 0,       // 词库总量
   rand = Math.random,
 }) {
   const { poem, words } = pathPoem(visitedWords);
@@ -110,7 +128,9 @@ export function buildResult({
     wordCount,
     steps,
     quote: quote || pickQuote(rand),
-    achievements: achievementsFor({ win, stepsLeft, wordCount, unlimited }),
+    achievements: achievementsFor({
+      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal,
+    }),
     bonus: finalScore({ win, stepsLeft, wordCount, unlimited }),
   };
 }

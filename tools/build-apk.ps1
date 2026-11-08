@@ -1,4 +1,4 @@
-# 拾径 Wordloom — APK 构建（无 Gradle：aapt2 + javac + d8 + zipalign + apksigner）
+﻿# 拾径 Wordloom — APK 构建（无 Gradle：aapt2 + javac + d8 + zipalign + apksigner）
 # 前置：android-sdk\ 下已有 cmdline-tools / platform-tools / platforms;android-33 / build-tools;33.0.2
 #       JDK 17（PATH 中已有 java）
 # 用法：powershell -File tools\build-apk.ps1

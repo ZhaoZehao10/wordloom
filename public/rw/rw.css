@@ -192,3 +192,15 @@ button.ghost:hover { color: var(--text); }
   background: rgba(108, 208, 255, 0.14);
   box-shadow: 0 0 12px rgba(108, 208, 255, 0.18);
 }
+
+/* ---------- 回放提示 ---------- */
+
+#replay-tip {
+  position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%);
+  z-index: 20; cursor: pointer;
+  padding: 9px 20px; border-radius: 999px;
+  font-size: 14px; letter-spacing: 1px; color: #bff0e6;
+  background: rgba(14, 26, 34, 0.86);
+  border: 1px solid rgba(120, 200, 190, 0.5);
+  backdrop-filter: blur(6px);
+}

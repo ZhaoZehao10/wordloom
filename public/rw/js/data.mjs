@@ -83,6 +83,9 @@ export const ACHIEVEMENTS = {
   pearls: { icon: '📿', name: '字字珠玑' },   // 收录 ≥ 10 词
   stroll: { icon: '🚶', name: '信步由缰' },   // 失败但收录 ≥ 6 词
   egg:    { icon: '✨', name: '1024 之魂' },  // 触发 1024 彩蛋
+  collector: { icon: '📚', name: '词集三十' }, // 跨局词集 ≥ 30 词
+  allDiffs:  { icon: '🧭', name: '三途皆涉' }, // 三种难度各胜一局
+  lexicon:   { icon: '🌌', name: '词汇全图' }, // 词集集满
 };
 
 export const DIFFICULTIES = [

@@ -7,6 +7,7 @@
 //   C. 数据完整性（词库/一言/皮肤/音色/难度/成就）
 //   D. 合批几何正确性（边缓冲 / 词球烘焙 / 顶点色回写）
 import { generateGraph } from '../public/rw/js/graph.mjs';
+import fs from 'node:fs';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
@@ -18,9 +19,13 @@ import {
 import { posterContent, drawPoster, POSTER_SIZE } from '../public/rw/js/poster.mjs';
 import { buildMenuLayout, hitTestMenu, isSelected, drawMenu, MENU_W, MENU_H } from '../public/rw/js/menu.mjs';
 import {
+  renderTonePCM, toneKey, stepFreq, bearing, NOTE_PENTA,
+} from '../public/rw/js/spatial.mjs';
+import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
+import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
-  parseCollection, serializeCollection, addToCollection, collectionProgress,
+  parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -646,6 +651,167 @@ section('H. 词集收藏');
   eq(over.ratio, 1, '集满时比例恰为 1');
   eq(collectionProgress([], 0).total, 1, '非法 total 兜底为 1（避免除零）');
   eq(collectionProgress(null, 60).collected, 0, 'null 词集安全');
+}
+
+// ═══════════════════ I. 空间音效 / 路径回放 / 跨难度成就 ═══════════════════
+
+section('I. 空间音效');
+
+{
+  const sr = 48000;
+  const pcm = renderTonePCM({ freq: 440, duration: 0.1, sampleRate: sr, gain: 0.8 });
+  eq(pcm.length, Math.round(0.1 * sr), '采样点数 = 时长 × 采样率');
+  eq(pcm[0], 0, '首样本归零（防爆音）');
+  eq(pcm[pcm.length - 1], 0, '末样本归零');
+  const peak = Math.max(...pcm.map(Math.abs));
+  ok(peak > 0.05, '波形非静音', `peak=${peak.toFixed(3)}`);
+  ok(peak <= 1, '幅度不超过 1（不削波）', `peak=${peak.toFixed(3)}`);
+
+  // 包络：起始段（起音后）应比尾段响
+  const early = Math.max(...pcm.slice(Math.round(0.01 * sr), Math.round(0.03 * sr)).map(Math.abs));
+  const late = Math.max(...pcm.slice(Math.round(0.08 * sr), Math.round(0.095 * sr)).map(Math.abs));
+  ok(early > late, '指数衰减包络成立（前段响于尾段）', `${early.toFixed(3)} vs ${late.toFixed(3)}`);
+
+  // 波形差异
+  const sine = renderTonePCM({ freq: 440, duration: 0.05, type: 'sine' });
+  const square = renderTonePCM({ freq: 440, duration: 0.05, type: 'square' });
+  const diff = sine.reduce((s, v, i) => s + Math.abs(v - square[i]), 0);
+  ok(diff > 1, '不同波形产生不同 PCM', `diff=${diff.toFixed(2)}`);
+
+  // 参数兜底
+  const bad = renderTonePCM({ freq: 0, duration: 0, sampleRate: 100, gain: 5 });
+  ok(bad.length > 0 && Math.max(...bad.map(Math.abs)) <= 1, '非法参数被兜底且不越界');
+  const silent = renderTonePCM({ freq: 440, duration: 0.02, gain: 0 });
+  ok(silent.every((v) => v === 0), 'gain=0 → 全零');
+
+  // 缓存键
+  eq(toneKey({ freq: 880, duration: 0.12 }), toneKey({ freq: 880, duration: 0.12 }), '相同参数缓存键一致');
+  ok(toneKey({ freq: 880 }) !== toneKey({ freq: 660 }), '不同频率缓存键不同');
+
+  // 五声音阶
+  eq(stepFreq(0), NOTE_PENTA[0], 'stepFreq(0) = 宫');
+  eq(stepFreq(NOTE_PENTA.length), NOTE_PENTA[0], 'stepFreq 越界回绕');
+  eq(stepFreq(-1), NOTE_PENTA[1], '负索引取绝对模');
+  eq(stepFreq(NaN), NOTE_PENTA[0], 'NaN 兜底到宫');
+
+  // 方位角
+  const fwd = bearing({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -2 });
+  ok(Math.abs(fwd.azimuth) < 1e-9 && Math.abs(fwd.distance - 2) < 1e-9, '正前方方位角 0、距离 2');
+  const right = bearing({ x: 0, y: 0, z: 0 }, { x: 2, y: 0, z: 0 });
+  ok(Math.abs(right.azimuth - Math.PI / 2) < 1e-9, '右侧方位角 +90°');
+  eq(bearing(null, null), { azimuth: 0, distance: 0 }, '空输入安全');
+}
+
+section('I. 路径回放');
+
+{
+  const nodes = [
+    { pos: { x: 0, y: 0.5, z: -1 } },
+    { pos: { x: 1, y: 0.9, z: -2 } },
+    { pos: { x: -1, y: 1.2, z: -3 } },
+  ];
+  const path = buildReplayPath([0, 1, 2], nodes, { height: 0 });
+  eq(path.length, 3, '路径点数 = 访问点数');
+  ok(path.every((p) => p.y === 0), '回放高度统一（镜头平稳）');
+  eq(path[1].x, 1, '坐标透传');
+  eq(path[1].z, -2, '深度透传');
+  eq(buildReplayPath([0, 9], nodes).length, 1, '非法索引被跳过');
+  eq(buildReplayPath(null, nodes).length, 0, '空序列安全');
+
+  eq(replayDuration(path, { segmentMs: 500 }), 1000, '总时长 = 段数 × 段时长');
+  eq(replayDuration([1], {}), 0, '单点无时长');
+  eq(replayDuration([], {}), 0, '空路径无时长');
+
+  const a0 = replayAt(path, 0, { segmentMs: 500 });
+  ok(a0.pos.x === 0 && a0.pos.z === -1 && a0.done === false, '起点取样正确', JSON.stringify(a0.pos));
+  const aMid = replayAt(path, 250, { segmentMs: 500 });
+  ok(aMid.index === 0 && aMid.t > 0.4 && aMid.t < 0.6, '半段时仍在前一段中点附近');
+  ok(aMid.pos.y > 0.01, '中段有轻微起伏（lift）', String(aMid.pos.y.toFixed(3)));
+  const a1 = replayAt(path, 500, { segmentMs: 500 });
+  ok(a1.index === 1 && a1.t < 0.01 && a1.pos.x === 1, '到点后进入下一段起点', JSON.stringify(a1.pos));
+  const aEnd = replayAt(path, 5000, { segmentMs: 500 });
+  ok(aEnd.done === true && aEnd.pos.x === -1 && aEnd.pos.z === -3, '超时后停在终点并标记完成');
+  eq(replayAt([], 100).done, true, '空路径直接完成');
+  eq(replayAt([{ x: 1, y: 0, z: 0 }], 100).done, true, '单点路径直接完成');
+  const neg = replayAt(path, -50, { segmentMs: 500 });
+  ok(neg.pos.x === 0 && neg.done === false, '负数时间按 0 处理');
+  eq(replayAt(path, NaN).pos.x, 0, 'NaN 时间按 0 处理');
+}
+
+section('I. 跨难度与词集成就');
+
+{
+  const names = (list) => list.map((a) => a.name);
+  const base = { win: true, stepsLeft: 3, wordCount: 2, unlimited: false };
+
+  eq(names(achievementsFor({ ...base, collectionSize: 30 })), ['抵达 1024', '词集三十'], '词集 30 → 词集三十');
+  eq(names(achievementsFor({ ...base, collectionSize: 29 })), ['抵达 1024'], '词集 29 → 未达成（边界）');
+  eq(names(achievementsFor({ ...base, diffsWon: ['easy', 'normal', 'hard'] })), ['抵达 1024', '三途皆涉'], '三难度全胜 → 三途皆涉');
+  eq(names(achievementsFor({ ...base, diffsWon: ['easy', 'hard'] })), ['抵达 1024'], '缺一难度 → 未达成');
+  eq(names(achievementsFor({ ...base, collectionSize: 60, lexiconTotal: 60 })), ['抵达 1024', '词集三十', '词汇全图'], '集满 → 词汇全图');
+  eq(names(achievementsFor({ ...base, collectionSize: 60, lexiconTotal: 0 })), ['抵达 1024', '词集三十'], '词库总量未知时不判定集满');
+  // 组合：元进度与单局成就并存
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 10, collectionSize: 45, diffsWon: ['easy', 'normal', 'hard'] })),
+    ['字字珠玑', '信步由缰', '词集三十', '三途皆涉'], '多成就可叠加且顺序稳定');
+}
+
+{
+  // diffsWon：从战绩里提取已获胜难度
+  eq(diffsWon([]).length, 0, '空战绩无难度');
+  eq(diffsWon(null).length, 0, 'null 战绩安全');
+  eq(diffsWon('x').length, 0, '非数组安全');
+  const h = [
+    { win: true, diff: 'hard' }, { win: false, diff: 'easy' },
+    { win: true, diff: 'easy' }, { win: true, diff: 'hard' }, { win: true },
+  ];
+  eq(diffsWon(h).join(','), 'hard,easy,normal', '按胜局顺序去重，缺 diff 视为 normal');
+}
+
+{
+  // buildResult 会把元进度参数传给成就系统
+  const r = buildResult({
+    win: true, visitedWords: ['光'], collected: ['光'], steps: 1, stepsLeft: 1,
+    collectionSize: 31, diffsWon: ['easy', 'normal', 'hard'], lexiconTotal: 60,
+    quote: { flavor: '极客', text: 't' },
+  });
+  ok(r.achievements.some((a) => a.name === '词集三十'), 'buildResult 传递词集数');
+  ok(r.achievements.some((a) => a.name === '三途皆涉'), 'buildResult 传递已胜难度');
+}
+
+// ═══════════════════ J. 单文件打包的静态检查 ═══════════════════
+//
+// 离线版把这几个模块拼进同一个 <script> 作用域。只要出现重名的顶层
+// const/let（历史上踩过 PENTA），整段脚本就会 SyntaxError、游戏直接白屏。
+// 这里做静态检查，把这类问题挡在提交之前。
+
+section('J. 单文件打包静态检查');
+
+{
+  const BUNDLED = [
+    'data.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
+    'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs', 'graph.mjs', 'audio.mjs',
+  ];
+  const decls = new Map();   // 名字 → 出现的文件
+  const dupes = [];
+  for (const name of BUNDLED) {
+    const src = fs.readFileSync(new URL(`../public/rw/js/${name}`, import.meta.url), 'utf8');
+    // 只取顶层声明（行首无缩进），避免把函数内部变量算进来
+    const re = /^(?:export\s+)?(?:const|let)\s+([A-Za-z_$][\w$]*)/gm;
+    let m;
+    while ((m = re.exec(src))) {
+      const id = m[1];
+      if (decls.has(id)) dupes.push(`${id} (${decls.get(id)} & ${name})`);
+      else decls.set(id, name);
+    }
+  }
+  eq(dupes.length, 0, '打包模块间无重名顶层 const/let', dupes.join(', '));
+  ok(decls.size >= 25, `共扫描到 ${decls.size} 个顶层声明（确认扫描本身有效）`);
+
+  // main.mjs 单独检查：它不会被其它模块重复声明，但要确认打包清单覆盖它依赖的模块
+  const mainSrc = fs.readFileSync(new URL('../public/rw/js/main.mjs', import.meta.url), 'utf8');
+  const imported = [...mainSrc.matchAll(/from\s+'\.\/([\w.-]+\.mjs)'/g)].map((x) => x[1]);
+  const missing = imported.filter((f) => f !== 'main.mjs' && !BUNDLED.includes(f));
+  eq(missing.length, 0, 'make-offline 打包清单覆盖 main.mjs 的全部依赖', missing.join(', '));
 }
 
 // ═══════════════════ 汇总 ═══════════════════
