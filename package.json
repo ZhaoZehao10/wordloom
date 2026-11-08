@@ -1,9 +1,19 @@
 {
-  "name": "random-walk-vr",
+  "name": "wordloom-vr",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "随机游走 VR — Pico Neo3 WebXR 游戏（词图行走 · 1024 彩蛋）",
+  "description": "拾径（Wordloom）— Pico Neo3 WebXR 词图漫游：在词与线的星座间行走，抵达 1024",
+  "author": "ZhaoZehao10 (https://github.com/ZhaoZehao10)",
+  "license": "MIT",
+  "homepage": "https://github.com/ZhaoZehao10/wordloom",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZhaoZehao10/wordloom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ZhaoZehao10/wordloom/issues"
+  },
   "scripts": {
     "serve": "node server.mjs",
     "test": "node tools/test-all.mjs",
@@ -20,6 +30,14 @@
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["webxr", "vr", "pico", "three.js", "game"],
-  "license": "MIT"
+  "keywords": [
+    "webxr",
+    "vr",
+    "pico",
+    "pico-neo3",
+    "three.js",
+    "game",
+    "word-graph",
+    "random-walk"
+  ]
 }

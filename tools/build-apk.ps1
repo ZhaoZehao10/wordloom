@@ -1,4 +1,4 @@
-﻿# 随机游走 VR — APK 构建（无 Gradle：aapt2 + javac + d8 + zipalign + apksigner）
+# 拾径 Wordloom — APK 构建（无 Gradle：aapt2 + javac + d8 + zipalign + apksigner）
 # 前置：android-sdk\ 下已有 cmdline-tools / platform-tools / platforms;android-33 / build-tools;33.0.2
 #       JDK 17（PATH 中已有 java）
 # 用法：powershell -File tools\build-apk.ps1
@@ -23,7 +23,7 @@ node (Join-Path $ROOT 'tools\make-icons.mjs')
 # 1) 资产：单文件离线版作为 assets/game/index.html
 node (Join-Path $ROOT 'tools\make-offline.mjs')
 New-Item -ItemType Directory -Force -Path (Join-Path $WORK 'assets\game') | Out-Null
-Copy-Item (Join-Path $OUT '随机游走VR-离线版.html') (Join-Path $WORK 'assets\game\index.html') -Force
+Copy-Item (Join-Path $OUT '拾径-离线版.html') (Join-Path $WORK 'assets\game\index.html') -Force
 
 # 2) aapt2 编译资源 + 链接 → base.apk（含 resources.arsc + manifest + assets）
 & (Join-Path $BT 'aapt2.exe') compile --dir (Join-Path $ROOT 'apk\res') -o (Join-Path $WORK 'res.zip')
@@ -73,14 +73,26 @@ Move-Item $tmpFix $apkPath -Force
 if ($LASTEXITCODE -ne 0) { Write-Error 'zipalign 失败' }
 
 $keystore = Join-Path $ROOT 'apk\debug.keystore'
+$passFile = Join-Path $ROOT 'apk\.keystore.pass'   # 本地文件，已在 .gitignore 中
+# 口令不写死在脚本里：优先环境变量 RW_KEYSTORE_PASS，其次本地口令文件，否则随机生成并落盘
+$ksPass = $env:RW_KEYSTORE_PASS
+if (-not $ksPass -and (Test-Path $passFile)) { $ksPass = (Get-Content $passFile -Raw).Trim() }
+if (-not $ksPass) {
+  $bytes = New-Object byte[] 18
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $ksPass = [Convert]::ToBase64String($bytes).Replace('/', 'A').Replace('+', 'B').TrimEnd('=')
+  Set-Content -Path $passFile -Value $ksPass -Encoding ascii -NoNewline
+  Write-Host "· 已生成本地签名口令并写入 apk/.keystore.pass（不入库）"
+}
+
 if (-not (Test-Path $keystore)) {
-  & keytool -genkeypair -keystore $keystore -storepass rwvr123 -keypass rwvr123 `
-    -alias rwvr -keyalg RSA -keysize 2048 -validity 10950 `
-    -dname 'CN=RandomWalk VR, OU=Dev, O=Pico3D, C=CN'
+  & keytool -genkeypair -keystore $keystore -storepass $ksPass -keypass $ksPass `
+    -alias wordloom -keyalg RSA -keysize 2048 -validity 10950 `
+    -dname 'CN=Wordloom, OU=Dev, O=Wordloom, C=CN'
   if ($LASTEXITCODE -ne 0) { Write-Error 'keytool 失败' }
 }
-$final = Join-Path $OUT '随机游走VR.apk'
-& (Join-Path $BT 'apksigner.bat') sign --ks $keystore --ks-pass pass:rwvr123 --key-pass pass:rwvr123 --out $final $aligned
+$final = Join-Path $OUT '拾径Wordloom.apk'
+& (Join-Path $BT 'apksigner.bat') sign --ks $keystore --ks-pass "pass:$ksPass" --key-pass "pass:$ksPass" --out $final $aligned
 if ($LASTEXITCODE -ne 0) { Write-Error 'apksigner 失败' }
 
 & (Join-Path $BT 'apksigner.bat') verify $final

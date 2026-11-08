@@ -1,13 +1,14 @@
-// 随机游走 VR — 浏览器性能实测（6x CPU 限速 ≈ Snapdragon XR2）
+// 拾径 Wordloom — 浏览器性能实测（6x CPU 限速 ≈ Snapdragon XR2）
 // 指标：开局建图+建场景耗时、滑翔中帧率、走路事件循环延迟。
 import { spawn } from 'node:child_process';
+import { resolveChrome, tempProfile } from './chrome.mjs';
 
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const CHROME = resolveChrome();
 const PORT = 9344;
 const URL = 'https://localhost:8543/rw/index.html';
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
-  `--user-data-dir=${process.env.TEMP}\\rw-perf-${Date.now()}`, `--remote-debugging-port=${PORT}`,
+  `--user-data-dir=${tempProfile('rw-perf')}`, `--remote-debugging-port=${PORT}`,
   '--window-size=1280,800', '--ignore-certificate-errors', 'about:blank',
 ], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -74,7 +75,7 @@ const perf = await evalJs(`(async () => {
     nodes: geo.nodeCount, ballVerts: geo.vertexCount,
   };
 })()`);
-console.log('随机游走 VR 性能（6x CPU 限速 ≈ 移动端）:', JSON.stringify(perf));
+console.log('拾径 Wordloom 性能（6x CPU 限速 ≈ 移动端）:', JSON.stringify(perf));
 
 // 通过标准（双门禁）：
 //   结构指标：drawcall ≤ 60、三角形 ≤ 60000、单球顶点数 = 每节点 165（14×10 细分）

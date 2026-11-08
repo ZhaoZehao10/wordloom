@@ -1,17 +1,18 @@
 // 单文件离线版 file:// 验证：加载 → 无脚本错误 → 开局 → 走子 → 结算 → WebXR 接口探测
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { resolveChrome, tempProfile } from './chrome.mjs';
 import path from 'node:path';
 
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const CHROME = resolveChrome();
 const PORT = 9353;
-const FILE = 'dist/随机游走VR-离线版.html';
+const FILE = 'dist/拾径-离线版.html';
 // Windows 路径需转成正斜杠，否则 encodeURI 会把反斜杠编码为 %5C，file:// 打不开
 const URL = 'file:///' + encodeURI(path.resolve(FILE).replace(/\\/g, '/')).replace(/#/g, '%23');
 
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
-  `--user-data-dir=${process.env.TEMP}\\rw-offline-${Date.now()}`, `--remote-debugging-port=${PORT}`,
+  `--user-data-dir=${tempProfile('rw-offline')}`, `--remote-debugging-port=${PORT}`,
   '--window-size=1280,800', '--allow-file-access-from-files', 'about:blank',
 ], { stdio: 'ignore' });
 
@@ -75,7 +76,7 @@ const boot = await evalJs(`({
   fileProtocol: location.protocol === 'file:',
 })`);
 ok(boot.fileProtocol, 'file:// 协议');
-ok(boot.title.includes('随机游走'), '标题正确');
+ok(boot.title.includes('拾径'), '标题正确');
 ok(boot.THREE, 'THREE 全局可用（内联成功）');
 ok(boot.hook, '游戏钩子可用');
 

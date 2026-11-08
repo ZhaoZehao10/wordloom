@@ -1,4 +1,4 @@
-// 随机游走 VR — 结算海报（PNG）绘制
+// 拾径 Wordloom — 结算海报（PNG）绘制
 //
 // 原版网页回合结束会生成「思想路径」海报并可下载 PNG。VR 版此前只有复制文案，
 // 这里补齐同等能力：把结算数据排成 1080×1620 的竖版海报，浏览器内导出 PNG。
@@ -22,7 +22,7 @@ export function posterContent(result, { round = 0 } = {}) {
   if (!poemLines.length) poemLines = ['（一条无言的路）'];
 
   return {
-    title: '随机游走',
+    title: '拾径',
     subtitle: 'RANDOM WALK · 思想路径',
     outcome: result.win ? '抵达 1024' : '路，未走完',
     poemLines,

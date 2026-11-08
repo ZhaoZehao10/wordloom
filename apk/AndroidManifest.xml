@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.rwvr.randomwalk"
+    package="com.wordloom.roam"
     android:versionCode="1"
     android:versionName="1.0">
 
@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="随机游走VR"
+        android:label="拾径"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true">
         <activity

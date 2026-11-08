@@ -1,4 +1,4 @@
-// 随机游走 VR — VR 内菜单的纯布局与命中判定（不依赖 three / DOM，可单测）
+// 拾径 Wordloom — VR 内菜单的纯布局与命中判定（不依赖 three / DOM，可单测）
 //
 // 设计：菜单是一张 canvas 贴图（1024×720）+ 一块 1.2×0.84m 的 3D 面板。
 // 射线命中面板后拿到 UV，交给 hitTestMenu 换算成按钮 id —— 这样命中逻辑
@@ -102,7 +102,7 @@ export function drawMenu(ctx, state = {}) {
   ctx.font = 'bold 44px "PingFang SC","Microsoft YaHei",sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('随机游走 · 设置', width / 2, 52);
+  ctx.fillText('拾径 · 设置', width / 2, 52);
 
   // 行标题
   ctx.font = '26px "PingFang SC",sans-serif';

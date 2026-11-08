@@ -1,4 +1,4 @@
-package com.rwvr.randomwalk;
+package com.wordloom.roam;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -18,7 +18,7 @@ import java.net.Socket;
 import java.nio.charset.Charset;
 
 /**
- * 随机游走 VR — Pico Neo3 离线 APK 壳。
+ * 拾径 Wordloom — Pico Neo3 离线 APK 壳。
  *
  * 原理：APK 内置微型 HTTP 服务器，把游戏资产拷到应用私有目录后伺服在
  * http://127.0.0.1:8899/ 上，然后拉起默认浏览器（头显上即 Pico 浏览器）访问。
@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         TextView tv = new TextView(this);
-        tv.setText("🎲 随机游走 VR\n\n本地服务启动中…\n浏览器将自动打开 http://127.0.0.1:" + PORT + "/\n\n若未自动打开：手动打开「浏览器」输入上面地址。\n此页面可留在后台（服务随本应用运行）。");
+        tv.setText("🎲 拾径 Wordloom\n\n本地服务启动中…\n浏览器将自动打开 http://127.0.0.1:" + PORT + "/\n\n若未自动打开：手动打开「浏览器」输入上面地址。\n此页面可留在后台（服务随本应用运行）。");
         tv.setGravity(Gravity.CENTER);
         tv.setTextSize(18);
         tv.setLineSpacing(4, 1.2f);

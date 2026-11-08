@@ -1,17 +1,18 @@
-// 随机游走 VR — 桌面端到端验证（CDP，零依赖）
+// 拾径 Wordloom — 桌面端到端验证（CDP，零依赖）
 // 覆盖：页面加载无错误 → 开始游走 → 走一步/收词 → 步数耗尽失败结算 →
 //       再走一条 → 主干可达性统计 → 彩蛋（标题连点 / 1024 键盘）→ 截图。
 // 用法：先启动 node server.mjs，再 node test/rw-e2e.mjs
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { resolveChrome, tempProfile } from './chrome.mjs';
 
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const CHROME = resolveChrome();
 const PORT = 9343;
 const URL = 'https://localhost:8543/rw/index.html';
 
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
-  `--user-data-dir=${process.env.TEMP}\\rw-cdp-${Date.now()}`, `--remote-debugging-port=${PORT}`,
+  `--user-data-dir=${tempProfile('rw-cdp')}`, `--remote-debugging-port=${PORT}`,
   '--window-size=1280,800', '--ignore-certificate-errors', 'about:blank',
 ], { stdio: 'ignore' });
 
@@ -75,7 +76,7 @@ const boot = await evalJs(`({
   hasHook: !!window.__rw,
   sceneNodes: window.__rw ? 'hook-ok' : 'no-hook',
 })`);
-ok(boot.title.includes('随机游走'), '标题正确', JSON.stringify(boot));
+ok(boot.title.includes('拾径'), '标题正确', JSON.stringify(boot));
 ok(boot.introVisible, '引导页可见');
 ok(boot.hasHook, '测试钩子存在');
 

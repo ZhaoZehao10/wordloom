@@ -1,4 +1,4 @@
-// 随机游走 VR — 纯逻辑单元测试（不启动浏览器，毫秒级）
+// 拾径 Wordloom — 纯逻辑单元测试（不启动浏览器，毫秒级）
 // 用法: node test/rw-unit.mjs
 //
 // 覆盖四层：
@@ -400,7 +400,7 @@ section('E. 快转 & 海报');
     achievements: [{ icon: '🏁', name: '抵达 1024' }], steps: 7,
   };
   const pc = posterContent(base, { round: 3 });
-  eq(pc.title, '随机游走', '海报标题');
+  eq(pc.title, '拾径', '海报标题');
   eq(pc.outcome, '抵达 1024', '胜利海报结果文案');
   eq(pc.poemLines, ['光 · 熵 · 梦'], '海报路径诗单行');
   eq(pc.quote, '「人生没有 undo」', '海报一言加引号');
@@ -446,7 +446,7 @@ section('E. 快转 & 海报');
   eq(POSTER_SIZE.width, 1080, '海报宽度 1080');
   eq(POSTER_SIZE.height, 1620, '海报高度 1620');
   ok(drawn.length > 8, `海报绘制文字条数 ${drawn.length} > 8`);
-  ok(texts.includes('随机游走'), '画出了标题');
+  ok(texts.includes('拾径'), '画出了标题');
   ok(texts.includes('抵达 1024'), '画出了结果');
   ok(texts.some((s) => s.includes('银河')), '画出了路径词');
   ok(texts.some((s) => s.includes('每一步都是对无限可能')), '画出了一言');
@@ -520,7 +520,7 @@ section('F. VR 菜单');
     closePath() {}, fill() {}, stroke() {},
   };
   const layout = drawMenu(ctx, { pendingDifficulty: 'hard', skin: 'celadon', timbre: 'chime' });
-  ok(texts.includes('随机游走 · 设置'), '菜单画出标题');
+  ok(texts.includes('拾径 · 设置'), '菜单画出标题');
   for (const label of ['悠然', '标准', '紧绷', '墨', '朱砂', '青瓷', '木鱼', '电子', '风铃', '开始游走']) {
     ok(texts.includes(label), `菜单画出按钮「${label}」`);
   }

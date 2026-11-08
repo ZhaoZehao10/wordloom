@@ -1,4 +1,4 @@
-// 随机游走 VR 一键测试 — node tools/test-all.mjs [--fast] [--no-server]
+// 拾径 Wordloom 一键测试 — node tools/test-all.mjs [--fast] [--no-server]
 //
 // 串行运行全部套件，自动按需拉起本地 HTTPS 服务器（8543，结束后关闭）。
 //   --fast       跳过性能实测（rw-perf）

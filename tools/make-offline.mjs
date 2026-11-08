@@ -1,7 +1,7 @@
-// 把随机游走 VR 打包成单文件离线 HTML（file:// 直接打开）
+// 把拾径 Wordloom 打包成单文件离线 HTML（file:// 直接打开）
 // - ESM 多模块 → 手工拼接：按依赖序内联 data/graph/audio/main，剥掉 import/export
 // - three.module.min.js 内联为普通 <script>（全局 THREE）+ 一个命名空间桥接
-// 用法: node tools\make-offline.mjs  →  输出 dist/随机游走VR-离线版.html
+// 用法: node tools\make-offline.mjs  →  输出 dist/拾径-离线版.html
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -71,6 +71,6 @@ html = html.replace('<script type="module" src="js/main.mjs"></script>',
 html = html.replace('</body>', `<div style="position:fixed;bottom:8px;left:0;right:0;text-align:center;z-index:9;opacity:.6;font-size:12px">单文件离线版 · 若无 ENTER VR 按钮请改用 APK 版（README）</div></body>`);
 
 fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
-const out = path.join(ROOT, 'dist', '随机游走VR-离线版.html');
+const out = path.join(ROOT, 'dist', '拾径-离线版.html');
 fs.writeFileSync(out, html, 'utf8');
 console.log('写出:', out, `${(fs.statSync(out).size / 1024 / 1024).toFixed(2)} MB`);

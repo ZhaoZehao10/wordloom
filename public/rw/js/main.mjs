@@ -1,4 +1,4 @@
-// 随机游走 VR — 主程序
+// 拾径 Wordloom — 主程序
 // Three.js r160 + WebXR，适配 Pico Neo3。
 // 原版网页玩法 → 3D 化：
 //   · 词节点悬浮成星座，墨线连边；从朱砂「出发」走到赤金「1024」；
@@ -486,7 +486,7 @@ function downloadPoster() {
       if (!blob) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `随机游走-思想路径-${Date.now()}.png`;
+      a.download = `拾径-思想路径-${Date.now()}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -674,7 +674,7 @@ function wire2D() {
   $('requote-btn').onclick = () => rerollQuote();
   $('copy-btn').onclick = () => {
     const r = resultData(state.mode === 'ended');
-    const text = `【随机游走 · 思想路径】\n${r.poem}\n「${r.quote.text}」—— ${r.quote.flavor}\n${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分（最佳 ${r.best}）`;
+    const text = `【拾径 · 思想路径】\n${r.poem}\n「${r.quote.text}」—— ${r.quote.flavor}\n${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分（最佳 ${r.best}）`;
     navigator.clipboard?.writeText(text)
       .then(() => { $('copy-btn').textContent = '已复制 ✓'; setTimeout(() => ($('copy-btn').textContent = '复制路径文案'), 1500); })
       .catch(() => {});
@@ -683,7 +683,7 @@ function wire2D() {
     state.titleTaps++;
     if (state.titleTaps >= 7 && !state.unlimited) {
       state.unlimited = true;
-      $('title-h').textContent = '∞ 随机游走';
+      $('title-h').textContent = '∞ 拾径';
       sfx.egg();
       updateHud();
     }
@@ -1003,7 +1003,7 @@ function updateVrHud() {
   if (!hudGroup.visible) return;
   const spr = hudGroup.userData.spr;
   if (state.mode === 'intro') {
-    spr.material.map = panelTexture(['随机游走 · 步数内抵达 1024', '扣扳机 → 开始游走']);
+    spr.material.map = panelTexture(['拾径 · 步数内抵达 1024', '扣扳机 → 开始游走']);
   } else {
     const steps = state.unlimited ? '∞' : `${state.stepsLeft}`;
     spr.material.map = panelTexture([

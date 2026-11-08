@@ -1,10 +1,18 @@
-# 随机游走 VR（Pico Neo3 WebXR）
+# 拾径 · Wordloom
 
-在 VR 里沿词图一路走一路拼句子的小游戏：每步从相邻词里选一个，越走越长；
-词图每局随机生成（主干保证可达 + 旁支随机），配五声音阶程序化音效与结算海报。
+> 词与线织成一片荒原。每一步都是一次删减，走完就是一条只属于你的思想路径。
 
-> 本仓库只包含「随机游走 VR」。另一款「3D 拼图 VR」在独立仓库
-> `../Pico3D`（https://github.com/… 待推送），两者互不混用。
+在 VR 里沿词图行走的小游戏（**Pico Neo3 · WebXR**）：每步只能走到相邻的词节点，
+沿墨线穿过星座般的词群，在步数耗尽前抵达赤金色的 **1024**；沿途收录的词会织成
+结算海报。词图每局随机生成（主干保证可达 + 旁支随机），配五声音阶程序化音效。
+
+- 开发者：ZhaoZehao10 · [GitHub](https://github.com/ZhaoZehao10)
+- 许可证：[MIT](LICENSE)
+- 灵感来源：装置展览《标记独属于你的思想路径 Random Walk》（1024 程序员节彩蛋）；
+  本项目为独立的 3D/VR 重新实现，名称与代码均与原作者及其作品无隶属关系。
+
+> 本仓库只包含「拾径 / Wordloom」。另一款「3D 拼图 VR」由另一个仓库单独维护，
+> 两者互不混用。
 
 ## 运行
 
@@ -20,8 +28,8 @@ node server.mjs           # HTTPS 8543 / HTTP 8181（与拼图仓库端口错开
 ## 构建
 
 ```powershell
-node tools\make-offline.mjs    # → dist\随机游走VR-离线版.html（单文件、无外部请求）
-powershell -File tools\build-apk.ps1   # → dist\随机游走VR.apk（无 Gradle：aapt2/javac/d8/zipalign/apksigner）
+node tools\make-offline.mjs    # → dist\拾径Wordloom-离线版.html（单文件、无外部请求）
+powershell -File tools\build-apk.ps1   # → dist\拾径Wordloom.apk（无 Gradle：aapt2/javac/d8/zipalign/apksigner）
 ```
 
 APK 为壳工程（`apk/`）：应用启动后把内置 `assets/game/index.html` 拷到私有目录，

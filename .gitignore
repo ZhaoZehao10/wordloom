@@ -8,8 +8,9 @@ android-sdk/
 # 本地开发证书（node make-cert.mjs 可重新生成，私钥不入库）
 cert/
 
-# 本地签名密钥与密码
+# 本地签名密钥与密码（口令文件由构建脚本本地生成，绝不入库）
 *.keystore
+apk/.keystore.pass
 
 # 测试日志
 test/*.log
