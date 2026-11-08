@@ -13,6 +13,7 @@ import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
 import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw } from './rules.mjs';
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
+import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -43,6 +44,7 @@ const state = {
   eggTyped: '',                 // 1024 键盘彩蛋
   titleTaps: 0,                 // 标题连点计数
   turn: {},                     // 每只手柄的快转状态 { armed }
+  pendingDiff: 'normal',        // VR 菜单里选择、下一局生效的难度
 };
 
 let renderer, scene, camera, rig, controllers = {};
@@ -107,6 +109,12 @@ window.__rw = {
   },
   // 快转（测试用：等价于摇杆输入）
   debugSnap: (x, hand = 'right') => applySnap(hand, x),
+  // VR 菜单（测试用：等价于握键开关 / 射线点选）
+  debugMenuToggle: (on) => setMenuOpen(on === undefined ? !menuOpen : !!on),
+  debugMenuOpen: () => menuOpen,
+  debugMenuSelect: (id) => applyMenuAction(id),
+  debugMenuButtons: () => (menuLayout ? menuLayout.buttons.map((b) => b.id) : []),
+  debugMenuHit: (u, v) => (menuLayout ? hitTestMenu(menuLayout.buttons, u, v) : null),
 }; // 测试钩子
 
 
@@ -206,6 +214,11 @@ function buildControllers() {
     c.add(tip);
     c.userData.tip = tip;
     c.addEventListener('selectstart', () => onSelect(handed));
+    // 握键（squeeze）= 开关 VR 设置菜单
+    c.addEventListener('squeezestart', () => {
+      audio.unlock();
+      setMenuOpen(!menuOpen);
+    });
     rig.add(c);                                 // 跟随玩家滑翔
     controllers[handed] = c;
   }
@@ -227,9 +240,11 @@ function aimedNode(hand) {
 
 function onSelect(hand) {
   audio.unlock();
+  // 菜单打开时，扳机优先用于点选菜单
+  if (menuOpen) { menuClick(hand); return; }
   if (state.mode !== 'playing') {
     // VR 内没有 DOM：引导态扣扳机 = 直接开局（结算面板由 endPanelClick 处理）
-    if (state.mode === 'intro' && renderer.xr.isPresenting) { sfx.ui(); startRound('normal'); return; }
+    if (state.mode === 'intro' && renderer.xr.isPresenting) { sfx.ui(); startRound(state.pendingDiff); return; }
     endPanelClick(hand);
     return;
   }
@@ -426,6 +441,94 @@ function pollSnapTurn() {
     const x = axes.length >= 4 ? axes[2] : axes[0];
     applySnap(src.handedness || 'none', x);
   }
+}
+
+// ---------------- VR 内菜单（握键开关 · 射线点选） ----------------
+// 头显里没有 DOM，难度/皮肤/音色只能进 VR 前在电脑上选 —— 这里补一个 3D 菜单：
+// 一张 canvas 贴图贴在视线前方 1.1m，射线命中后用 UV 换算按钮。
+
+let menuGroup = null, menuMesh = null, menuCanvas = null, menuCtx = null, menuTex = null, menuLayout = null;
+let menuOpen = false;
+
+function ensureMenu() {
+  if (menuGroup) return;
+  menuCanvas = document.createElement('canvas');
+  menuCanvas.width = MENU_W;
+  menuCanvas.height = MENU_H;
+  menuCtx = menuCanvas.getContext('2d');
+  menuTex = new THREE.CanvasTexture(menuCanvas);
+  menuTex.colorSpace = THREE.SRGBColorSpace;
+  menuMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.1, (1.1 * MENU_H) / MENU_W),
+    new THREE.MeshBasicMaterial({ map: menuTex, transparent: true, depthTest: false })
+  );
+  menuMesh.renderOrder = 40;
+  menuGroup = new THREE.Group();
+  menuGroup.add(menuMesh);
+  menuGroup.visible = false;
+  scene.add(menuGroup);
+}
+
+function redrawMenu() {
+  ensureMenu();
+  menuLayout = drawMenu(menuCtx, {
+    pendingDifficulty: state.pendingDiff,
+    skin: state.skin,
+    timbre: audio.timbre,
+  });
+  menuTex.needsUpdate = true;
+}
+
+function updateMenuPose() {
+  if (!menuGroup) return;
+  const cp = camera.getWorldPosition(new THREE.Vector3());
+  const q = camera.getWorldQuaternion(new THREE.Quaternion());
+  menuGroup.position.copy(new THREE.Vector3(0, -0.06, -1.1).applyQuaternion(q).add(cp));
+  menuGroup.quaternion.copy(q);
+}
+
+function setMenuOpen(on) {
+  ensureMenu();
+  menuOpen = on;
+  if (on) { redrawMenu(); updateMenuPose(); }
+  menuGroup.visible = on;
+  return menuOpen;
+}
+
+function applyMenuAction(id) {
+  sfx.ui();
+  const [kind, value] = id.split(':');
+  if (kind === 'diff') {
+    state.pendingDiff = value;          // 难度下一局生效（避免中途改规则）
+    redrawMenu();
+  } else if (kind === 'skin') {
+    state.skin = value;
+    localStorage.setItem('rw-skin', value);
+    applySkinLook();
+    redrawMenu();
+  } else if (kind === 'timbre') {
+    audio.setTimbre(value);
+    localStorage.setItem('rw-timbre', value);
+    redrawMenu();
+  } else if (kind === 'start') {
+    startRound(state.pendingDiff);
+    setMenuOpen(false);
+  }
+  return true;
+}
+
+// 返回 true 表示这次扳机被菜单消费掉了
+function menuClick(hand) {
+  if (!menuOpen || !menuMesh || !menuLayout) return false;
+  const c = controllers[hand];
+  if (!c) return false;
+  raycaster.set(c.getWorldPosition(new THREE.Vector3()), c.getWorldDirection(new THREE.Vector3()));
+  const hits = raycaster.intersectObject(menuMesh, false);
+  if (!hits.length || !hits[0].uv) return false;
+  // three 的 UV 原点在左下，菜单布局原点在左上
+  const id = hitTestMenu(menuLayout.buttons, hits[0].uv.x, 1 - hits[0].uv.y);
+  if (!id) return false;
+  return applyMenuAction(id);
 }
 
 // ---------------- 2D DOM ----------------
@@ -942,6 +1045,7 @@ function animate() {
   if (starfield) starfield.rotation.y = t * 0.004;
 
   pollSnapTurn();
+  if (menuOpen) updateMenuPose();
   updateVrHud();
   renderer.render(scene, camera);
 }

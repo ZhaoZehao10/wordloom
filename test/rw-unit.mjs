@@ -16,6 +16,7 @@ import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
 } from '../public/rw/js/geometry.mjs';
 import { posterContent, drawPoster, POSTER_SIZE } from '../public/rw/js/poster.mjs';
+import { buildMenuLayout, hitTestMenu, isSelected, drawMenu, MENU_W, MENU_H } from '../public/rw/js/menu.mjs';
 
 let pass = 0;
 const failures = [];
@@ -447,6 +448,78 @@ section('E. 快转 & 海报');
   ok(texts.some((s) => s.includes('6 步')), '画出了数据行');
   ok(texts.some((s) => s.includes('🏁 抵达 1024')), '画出了成就');
   eq(data.outcome, '抵达 1024', 'drawPoster 返回的数据与内容一致');
+}
+
+// ═══════════════════ F. VR 菜单布局与命中 ═══════════════════
+
+section('F. VR 菜单');
+
+{
+  const { buttons, rowTitles, width, height } = buildMenuLayout();
+  eq(width, MENU_W, '菜单宽度常量一致');
+  eq(height, MENU_H, '菜单高度常量一致');
+  eq(rowTitles.length, 3, '菜单 3 行（难度/皮肤/音色）');
+  eq(buttons.length, 10, '菜单按钮总数 = 3×3 选项 + 1 开始');
+
+  // id 唯一
+  eq(new Set(buttons.map((b) => b.id)).size, buttons.length, '按钮 id 唯一');
+
+  // 全部在面板内
+  const outOfBounds = buttons.filter((b) => b.x < 0 || b.y < 0 || b.x + b.w > MENU_W || b.y + b.h > MENU_H);
+  eq(outOfBounds.length, 0, '所有按钮完整落在面板内', outOfBounds.map((b) => b.id).join(','));
+
+  // 两两不重叠
+  let overlaps = 0;
+  for (let i = 0; i < buttons.length; i++) {
+    for (let j = i + 1; j < buttons.length; j++) {
+      const a = buttons[i], b = buttons[j];
+      const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      if (ix > 0 && iy > 0) overlaps++;
+    }
+  }
+  eq(overlaps, 0, '按钮之间无重叠（射线不会点错）');
+
+  // 每个按钮中心点必中自己
+  const misHit = [];
+  for (const b of buttons) {
+    const u = (b.x + b.w / 2) / MENU_W;
+    const v = (b.y + b.h / 2) / MENU_H;
+    const hit = hitTestMenu(buttons, u, v);
+    if (hit !== b.id) misHit.push(`${b.id}→${hit}`);
+  }
+  eq(misHit.length, 0, '每个按钮中心命中自身', misHit.join(','));
+
+  // 边角与越界
+  eq(hitTestMenu(buttons, 0.005, 0.02), null, '标题区不命中任何按钮');
+  eq(hitTestMenu(buttons, -0.1, 0.5), null, 'u 越界返回 null');
+  eq(hitTestMenu(buttons, 0.5, 1.2), null, 'v 越界返回 null');
+  eq(hitTestMenu(buttons, NaN, 0.5), null, 'NaN 返回 null');
+
+  // 选中态
+  ok(isSelected('diff:easy', { difficulty: 'easy' }), '难度选中态正确');
+  ok(!isSelected('diff:hard', { difficulty: 'easy' }), '未选中的难度不高亮');
+  ok(isSelected('skin:cinnabar', { skin: 'cinnabar' }), '皮肤选中态正确');
+  ok(isSelected('timbre:chime', { timbre: 'chime' }), '音色选中态正确');
+  ok(!isSelected('start', { difficulty: 'easy' }), '开始按钮不参与选中高亮');
+}
+
+{
+  // drawMenu 用 mock context 断言所有标签都画出来
+  const texts = [];
+  const ctx = {
+    font: '', fillStyle: '', strokeStyle: '', lineWidth: 1, textAlign: '', textBaseline: '',
+    fillText(s) { texts.push(String(s)); },
+    measureText(s) { return { width: String(s).length * 12 }; },
+    fillRect() {}, strokeRect() {}, beginPath() {}, moveTo() {}, arcTo() {},
+    closePath() {}, fill() {}, stroke() {},
+  };
+  const layout = drawMenu(ctx, { pendingDifficulty: 'hard', skin: 'celadon', timbre: 'chime' });
+  ok(texts.includes('随机游走 · 设置'), '菜单画出标题');
+  for (const label of ['悠然', '标准', '紧绷', '墨', '朱砂', '青瓷', '木鱼', '电子', '风铃', '开始游走']) {
+    ok(texts.includes(label), `菜单画出按钮「${label}」`);
+  }
+  eq(layout.buttons.length, 10, 'drawMenu 返回布局完整');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

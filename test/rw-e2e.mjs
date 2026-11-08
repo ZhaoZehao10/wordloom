@@ -238,7 +238,33 @@ ok(Math.abs(snap.r3 - snap.r2) < 1e-9, '回中本身不改变朝向');
 ok(Math.abs(snap.r4 - snap.r3 + STEP) < 1e-6, '回中后再推 → 再次右转 30°');
 await evalJs(`window.__rw.debugSnap(0, 'right')`);
 
-console.log('\n[9] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[9] VR 内菜单');
+const menu = await evalJs(`(() => {
+  window.__rw.debugMenuToggle(true);
+  const open = window.__rw.debugMenuOpen();
+  const ids = window.__rw.debugMenuButtons();
+  const hit = window.__rw.debugMenuHit(0.5, 0.247);   // 第一行中间按钮（标准）
+  const gap = window.__rw.debugMenuHit(0.5, 0.5);     // 行间空隙应无按钮
+  window.__rw.debugMenuSelect('diff:easy');
+  window.__rw.debugMenuSelect('skin:celadon');
+  window.__rw.debugMenuSelect('timbre:chime');
+  const st = window.__rw.state;
+  const applied = { pending: st.pendingDiff, skin: st.skin, timbre: window.__rw.audio.timbre };
+  window.__rw.debugMenuSelect('start');
+  const after = { open: window.__rw.debugMenuOpen(), steps: st.stepsLeft, mode: st.mode };
+  return { open, ids, hit, gap, applied, after };
+})()`);
+ok(menu.open, '握键打开菜单');
+ok(menu.ids.length === 10 && menu.ids.includes('diff:easy') && menu.ids.includes('start'), '菜单按钮齐全', JSON.stringify(menu.ids));
+ok(menu.hit === 'diff:normal', `按钮中心命中正确（${menu.hit}）`);
+ok(menu.gap === null, '行间空隙不命中按钮（不会误点）');
+ok(menu.applied.pending === 'easy', '菜单选难度 → 下一局用 easy');
+ok(menu.applied.skin === 'celadon', '菜单换皮肤 → celadon');
+ok(menu.applied.timbre === 'chime', '菜单换音色 → chime');
+ok(menu.after.open === false, '点开始后菜单自动收起');
+ok(menu.after.mode === 'playing' && menu.after.steps === 16, `点开始 → 按 easy 开新局（${menu.after.steps} 步）`, JSON.stringify(menu.after));
+
+console.log('\n[10] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
