@@ -1,0 +1,21 @@
+name: Unit tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 语法检查
+        run: |
+          for f in public/rw/js/*.mjs tools/*.mjs test/*.mjs server.mjs make-cert.mjs; do
+            node --check "$f"
+          done
+      - name: 单元测试（286 项断言，含图不变量/规则/几何/打包静态检查）
+        run: node test/rw-unit.mjs

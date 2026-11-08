@@ -2,6 +2,37 @@
 
 本项目遵循「小步提交 + 每步可测」的原则：每个提交都应能通过 `node tools/test-all.mjs --fast`。
 
+## [未发布] — 更名、开源准备与沉浸感增强
+
+### 更名
+- 项目更名为 **拾径 / Wordloom**（原工作名「随机游走 VR」与通用玩法描述过于接近，
+  且英文候选 `WordRoam`/`WordWeave`/`Wordrift` 均已被既有产品占用）。
+- APK 包名 `com.rwvr.randomwalk` → `com.wordloom.roam`，应用标签「拾径」。
+- README 增加命名说明与「公开检索≠商标法律意见」的提示。
+
+### 许可证与作者
+- 新增 `LICENSE`（MIT），版权人为仓库作者（GitHub 账号）。
+- `package.json` 补 `author` / `homepage` / `repository` / `bugs`。
+
+### 隐私与安全清理（开源前）
+- `make-cert.mjs`：证书 Subject 改为中性机构名，移除个人信息与旧项目名。
+- `build-apk.ps1`：移除硬编码 keystore 口令，改为环境变量 → 本地口令文件 → 随机生成。
+- `.gitignore`：忽略 `apk/.keystore.pass`。
+- 测试移除本机 Chrome 绝对路径，新增 `test/chrome.mjs` 跨平台解析 + 临时 profile。
+- 历史核查：从未提交过 `cert/`、`*.keystore`、`*.pem`、`*.key`。
+
+### 功能
+- **空间音效**：`spatial.mjs` 纯函数合成 PCM（四种波形 + 指数包络 + 谐波），
+  主程序用 `THREE.PositionalAudio` 池把走路/收词声定位到词节点；桌面自动回落 2D。
+- **路径回放**：`replay.mjs` 把访问序列变成巡览路径；结算后「▶ 重放路径」沿足迹
+  自动巡览，扣扳机/点提示条跳过；VR 结算面板扩为三按钮。
+- **跨难度与词集成就**：「词集三十」「三途皆涉」「词汇全图」。
+
+### 测试
+- 单元 286 项（新增 PCM/包络/方位角/回放取样/成就阈值/打包重名静态检查）。
+- e2e 69 项（新增回放启动与跳过、空间音效回落、跨难度成就显示）。
+- 修复：单文件离线包因 `PENTA` 重复声明白屏；已重命名并加静态检查防复发。
+
 ## [未发布] — 元进度与流程一致性
 
 ### 修复
