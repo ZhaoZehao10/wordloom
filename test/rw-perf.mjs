@@ -64,12 +64,32 @@ const perf = await evalJs(`(async () => {
   for (let i = 0; i < 10; i++) window.__rw.startRound('normal');
   const rebuildMs = (performance.now() - t2) / 10;
   window.__rw.startRound('normal');
-  return { buildMs: +buildMs.toFixed(1), fps: +fps.toFixed(1), rebuildMs: +rebuildMs.toFixed(1) };
+  await new Promise((r) => setTimeout(r, 200));
+  // 4) 渲染结构成本（比帧率稳定得多，作为回归门禁）
+  const info = window.__rw.rendererInfo();
+  const geo = window.__rw.ballsGeoInfo();
+  return {
+    buildMs: +buildMs.toFixed(1), fps: +fps.toFixed(1), rebuildMs: +rebuildMs.toFixed(1),
+    drawCalls: info.calls, triangles: info.triangles,
+    nodes: geo.nodeCount, ballVerts: geo.vertexCount,
+  };
 })()`);
 console.log('随机游走 VR 性能（6x CPU 限速 ≈ 移动端）:', JSON.stringify(perf));
 
-// 通过标准：开局 < 1.5s（移动端可接受），帧率 ≥ 60（Pico Neo3 面板 72Hz），重开 < 300ms
-const ok = perf.buildMs < 1500 && perf.fps >= 60 && perf.rebuildMs < 300;
-console.log(ok ? '性能达标 ✓' : '性能不达标 ✗');
+// 通过标准（双门禁）：
+//   结构指标：drawcall ≤ 60、三角形 ≤ 60000、单球顶点数 = 每节点 165（14×10 细分）
+//   ——这两项不受 headless 抖动影响，是真正能拦住「悄悄变重」的回归闸门
+//   时间指标：开局 < 1.5s、重开 < 300ms、帧率中位数 ≥ 60（Pico Neo3 面板 72Hz）
+const BUDGET = { drawCalls: 60, triangles: 60000, vertsPerNode: 165 };
+const problems = [];
+if (perf.drawCalls > BUDGET.drawCalls) problems.push(`drawcall ${perf.drawCalls} > ${BUDGET.drawCalls}`);
+if (perf.triangles > BUDGET.triangles) problems.push(`三角形 ${perf.triangles} > ${BUDGET.triangles}`);
+if (perf.nodes > 0 && perf.ballVerts / perf.nodes !== BUDGET.vertsPerNode) problems.push(`每节点顶点 ${perf.ballVerts / perf.nodes} ≠ ${BUDGET.vertsPerNode}`);
+if (!(perf.buildMs < 1500)) problems.push(`开局 ${perf.buildMs}ms ≥ 1500ms`);
+if (!(perf.rebuildMs < 300)) problems.push(`重开 ${perf.rebuildMs}ms ≥ 300ms`);
+if (!(perf.fps >= 60)) problems.push(`帧率 ${perf.fps} < 60`);
+
+const ok = problems.length === 0;
+console.log(ok ? '性能达标 ✓' : `性能不达标 ✗ — ${problems.join('；')}`);
 chrome.kill();
 process.exit(ok ? 0 : 1);

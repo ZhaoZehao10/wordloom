@@ -23,3 +23,6 @@ Thumbs.db
 # 测试产物（每次跑测试重新生成，不入库）
 test/*.png
 *.idsig
+
+# 临时诊断产物
+test/_*
