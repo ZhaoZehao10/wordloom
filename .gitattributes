@@ -1,0 +1,10 @@
+# 统一换行：源码一律 LF，避免 Windows/macOS 协作时整文件 diff
+* text=auto eol=lf
+
+# 二进制资源不做文本转换与 diff
+*.png binary
+*.apk binary
+*.keystore binary
+*.crt binary
+*.pem binary
+*.key binary

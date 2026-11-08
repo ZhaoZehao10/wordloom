@@ -1,0 +1,25 @@
+{
+  "name": "random-walk-vr",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "随机游走 VR — Pico Neo3 WebXR 游戏（词图行走 · 1024 彩蛋）",
+  "scripts": {
+    "serve": "node server.mjs",
+    "test": "node tools/test-all.mjs",
+    "test:fast": "node tools/test-all.mjs --fast",
+    "test:unit": "node test/rw-unit.mjs",
+    "test:e2e": "node test/rw-e2e.mjs",
+    "test:offline": "node test/rw-offline-e2e.mjs",
+    "test:perf": "node test/rw-perf.mjs",
+    "build:offline": "node tools/make-offline.mjs",
+    "build:icons": "node tools/make-icons.mjs",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1",
+    "build": "node tools/make-offline.mjs && powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["webxr", "vr", "pico", "three.js", "game"],
+  "license": "MIT"
+}
