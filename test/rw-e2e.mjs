@@ -585,8 +585,13 @@ const extras = await evalJs(`(async () => {
   const adj = {};
   for (const [a, b] of st.graph.edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
   window.__rw.tryWalk(adj[st.at][0]);
-  await new Promise(r => setTimeout(r, 90));
-  const during = window.__rw.vignetteInfo();
+  let maxOp = 0;
+  for (let i = 0; i < 30; i++) {
+    maxOp = Math.max(maxOp, window.__rw.vignetteInfo().opacity);
+    if (maxOp > 0) break;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const during = { ...window.__rw.vignetteInfo(), opacity: maxOp };
 
   // 座姿标定
   const seated = window.__rw.debugCalibrateSeated(1.2);
