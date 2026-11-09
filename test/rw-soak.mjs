@@ -17,6 +17,7 @@ const PROFILE = tempProfile('rw-soak');
 
 const chrome = spawn(resolveChrome(), [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
+  ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
   '--enable-precise-memory-info', '--js-flags=--expose-gc',
   `--user-data-dir=${PROFILE}`, '--remote-debugging-port=0',
   '--window-size=1280,800', '--ignore-certificate-errors', 'about:blank',

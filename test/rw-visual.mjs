@@ -20,6 +20,7 @@ const THRESHOLD_PCT = 2;
 const PROFILE = tempProfile('rw-visual');
 const chrome = spawn(resolveChrome(), [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
+  ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
   `--user-data-dir=${PROFILE}`, '--remote-debugging-port=0',
   '--window-size=1280,800', '--ignore-certificate-errors', 'about:blank',
 ], { stdio: 'ignore' });

@@ -12,6 +12,7 @@ const URL = 'file:///' + encodeURI(path.resolve(FILE).replace(/\\/g, '/')).repla
 
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
+  ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
   `--user-data-dir=${tempProfile('rw-offline')}`, `--remote-debugging-port=${PORT}`,
   '--window-size=1280,800', '--allow-file-access-from-files', 'about:blank',
 ], { stdio: 'ignore' });

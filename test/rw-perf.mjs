@@ -8,6 +8,7 @@ const PORT = 9344;
 const URL = 'https://localhost:8543/rw/index.html';
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
+  ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
   `--user-data-dir=${tempProfile('rw-perf')}`, `--remote-debugging-port=${PORT}`,
   '--window-size=1280,800', '--ignore-certificate-errors', 'about:blank',
 ], { stdio: 'ignore' });
