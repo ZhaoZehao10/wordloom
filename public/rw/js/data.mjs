@@ -11,7 +11,6 @@ export const WORDS = [
 ];
 
 export const FLAVORS = ['哲思', '极客', '古风', '清醒', '科幻'];
-
 export const QUOTES = {
   哲思: [
     '我们不是在行走，是在被路径走出。',
@@ -94,3 +93,58 @@ export const DIFFICULTIES = [
 ];
 
 export const SCORE = { word: 10, stepLeft: 5, win: 100 };
+
+// ---------------- 主题词包 ----------------
+// 词包只影响「这一局用哪些词」，不改变规则；词集是跨词包的全局收藏。
+// 每个词包至少 40 词，保证 9~16 步的图也有足够多样性。
+const POETRY_EXTRA = [
+  '落花', '流水', '明月', '长亭', '故人', '青衫', '归舟', '烟雨', '旧梦', '折柳',
+  '听雪', '问月', '孤舟', '残照', '寒山', '夜航', '春信', '秋声', '空谷', '余音',
+];
+const GEEK_EXTRA = [
+  '二进制', '协议', '线程', '编译', '哈希', '内核', '栈帧', '管道', '信号', '调度',
+  '字节码', '对象', '闭包', '迭代', '并行', '容错', '灰度', '沙箱', '快照', '回滚',
+];
+const NATURE_EXTRA = [
+  '晚霞', '溪流', '山谷', '林间', '荒原', '云', '风', '露水', '松涛', '雪线',
+  '花期', '落叶', '远山', '薄雾', '草甸', '河湾', '石阶', '炊烟', '南风', '晴空',
+];
+
+export const WORD_PACKS = {
+  classic: { key: 'classic', name: '经典', desc: '词与线织成的荒原', words: WORDS },
+  poetry: {
+    key: 'poetry', name: '诗词', desc: '落花流水，长亭故人',
+    words: [...new Set([
+      '诗', '梦', '山海', '灯火', '银河', '雨', '潮汐', '麦浪', '风筝', '萤火',
+      '蝉鸣', '晨昏', '子夜', '岛屿', '苔藓', '蝴蝶', '果壳', '深渊', '群星', '缪斯',
+      ...POETRY_EXTRA,
+    ])],
+  },
+  geek: {
+    key: 'geek', name: '极客', desc: '字节与指针的夜航',
+    words: [...new Set([
+      '字节', '递归', '代码', '缓存', '指针', '变量', '逻辑', '拓扑', '熵', '量子',
+      '奇点', '硅', '蒸汽', '冗余', '断点', '浮点', '回车', '白噪', '镜像', '磁场',
+      ...GEEK_EXTRA,
+    ])],
+  },
+  nature: {
+    key: 'nature', name: '自然', desc: '野草、候鸟与溪流',
+    words: [...new Set([
+      '光', '星尘', '野草', '远方', '泡沫', '黎明', '潮汐', '石头', '候鸟', '麦田',
+      '冰河', '岛屿', '苔藓', '蝴蝶', '萤火', '蝉鸣', '回声', '银河', '雨',
+      ...NATURE_EXTRA,
+    ])],
+  },
+};
+
+export const PACK_KEYS = Object.keys(WORD_PACKS);
+
+/** 所有词包的并集：词集收藏的口径（跨词包累计）。 */
+export const ALL_WORDS = [...new Set(PACK_KEYS.flatMap((k) => WORD_PACKS[k].words))];
+export const TOTAL_WORDS = ALL_WORDS.length;
+
+/** 词包合法性校验。 */
+export function normalizePack(v) {
+  return PACK_KEYS.includes(v) ? v : 'classic';
+}

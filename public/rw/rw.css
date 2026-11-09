@@ -204,3 +204,21 @@ button.ghost:hover { color: var(--text); }
   border: 1px solid rgba(120, 200, 190, 0.5);
   backdrop-filter: blur(6px);
 }
+
+/* ---------- 每日 7 日榜 / 音量 / 遮罩 ---------- */
+
+.daily-board {
+  display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+  margin: 2px 0 6px;
+}
+.daily-chip {
+  font-size: 11px; line-height: 1.5; padding: 3px 7px; border-radius: 8px;
+  border: 1px solid rgba(140, 165, 255, 0.18);
+  color: #5f6a88; background: rgba(20, 27, 51, 0.45);
+  min-width: 46px; text-align: center;
+}
+.daily-chip.played { color: #dfe7ff; border-color: rgba(108, 208, 255, 0.5); }
+.daily-chip.win { color: #ffcf4d; border-color: rgba(255, 207, 77, 0.6); }
+.daily-chip small { display: block; opacity: 0.75; font-size: 10px; }
+
+.volume-range { width: 110px; accent-color: #6cd0ff; vertical-align: middle; }

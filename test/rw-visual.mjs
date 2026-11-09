@@ -65,10 +65,20 @@ const shoot = async (name) => {
   shots.push({ name, b64: s.result.data });
 };
 
-// 1) 引导页
+// 1) 引导页（中文）
 await evalJs(`window.__rw.debugFreeze(true)`);
 await sleep(300);
 await shoot('intro');
+
+// 1b) 引导页（英文）
+await evalJs(`window.__rw.debugSetLang('en')`);
+await sleep(200);
+await send('Page.reload');
+await sleep(2400);
+await shoot('intro-en');
+await evalJs(`localStorage.setItem('rw-lang','zh')`);
+await send('Page.reload');
+await sleep(2400);
 
 // 2) 游戏中（固定种子 + 冻结动画）
 await evalJs(`window.__rw.debugStartSeeded(20261109)`);
@@ -76,6 +86,13 @@ await sleep(600);
 await evalJs(`window.__rw.debugFreeze(true)`);
 await sleep(300);
 await shoot('game');
+
+// 2b) VR 设置菜单
+await evalJs(`window.__rw.debugMenuToggle(true)`);
+await sleep(400);
+await shoot('menu');
+await evalJs(`window.__rw.debugMenuToggle(false)`);
+await sleep(200);
 
 // 3) 结算页
 await evalJs(`window.__rw.endRound(false)`);

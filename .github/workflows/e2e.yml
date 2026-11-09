@@ -1,0 +1,46 @@
+name: E2E
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 生成本地 HTTPS 证书
+        run: node make-cert.mjs
+
+      - name: 启动静态服务器
+        run: |
+          node server.mjs > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -ks https://localhost:8543/rw/index.html -o /dev/null; then break; fi
+            sleep 1
+          done
+          curl -ks https://localhost:8543/rw/index.html -o /dev/null
+
+      - name: 桌面端到端
+        run: node test/rw-e2e.mjs
+
+      - name: 离线单文件端到端
+        run: node test/rw-offline-e2e.mjs
+
+      - name: 稳定性 soak（20 局）
+        env:
+          SOAK_ROUNDS: '20'
+          SOAK_MS: '60000'
+        run: node test/rw-soak.mjs
+
+      - name: 失败时上传日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: server.log

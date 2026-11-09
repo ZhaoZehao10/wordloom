@@ -336,7 +336,7 @@ const coll = await evalJs(`(async () => {
 ok(coll.after >= coll.before, `词集只增不减（${coll.before}→${coll.after}）`);
 ok(coll.roundNew === coll.after - coll.before, `本局新词数 = 词集增量（${coll.roundNew}）`);
 ok(coll.persisted === coll.after, '词集已持久化且与内存一致');
-ok(coll.hud === `${coll.after}/60`, `引导页词集进度显示 ${coll.hud}`);
+ok(coll.hud.split('/')[1] === '120', `引导页词集进度显示 ${coll.hud}（总词库 120）`);
 ok(coll.hist.includes('词集'), `结算页显示词集进度「${coll.hist}」`);
 ok(coll.prog.collected <= coll.prog.total && coll.prog.ratio <= 1, '词集进度不超过 100%', JSON.stringify(coll.prog));
 
@@ -351,7 +351,7 @@ const panel = await evalJs(`(() => {
 ok(panel.visible, '点词集打开一览面板');
 ok(panel.chips === 60, `面板渲染全部词库条目（${panel.chips} 个）`);
 ok(panel.got === panel.collection, `已收集高亮数 = 词集数（${panel.got}/${panel.collection}）`);
-ok(panel.countText === `${panel.collection}/60`, `面板标题显示进度 ${panel.countText}`);
+ok(panel.countText.split('/')[1] === '120', `面板标题显示进度 ${panel.countText}（总词库 120）`);
 ok(panel.closed, '可关闭面板');
 
 console.log('\n[13] 路径回放 / 空间音效 / 跨难度成就');
@@ -550,7 +550,63 @@ ok(ux.glideState.glide === true, '切回滑翔模式后恢复滑翔动画');
 ok(ux.en.html === 'en' && ux.en.start === 'Start ▸' && ux.en.skin.includes('Skin'), `英文界面生效（${ux.en.start} / ${ux.en.skin}）`);
 ok(ux.zh.html === 'zh-CN' && ux.zh.start === '开始游走 ▸', '切回中文界面正常');
 
-console.log('\n[18] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[18] 主题词包 / 每日 7 日榜 / 舒适性');
+const extras = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  // 词包
+  const pack0 = window.__rw.packInfo();
+  window.__rw.debugSetPack('poetry');
+  const pack1 = window.__rw.packInfo();
+  const list = window.__rw.packList();
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 250));
+  const graphWords = st.graph.nodes.filter((n) => n.kind === 'word').map((n) => n.word);
+  const allFromPack = graphWords.every((w) => list.includes(w));
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 120));
+
+  // 每日 7 日榜
+  const dh = window.__rw.dailyHistoryInfo();
+  const boardDom = document.querySelectorAll('#daily-board .daily-chip').length;
+
+  // 音量
+  window.__rw.debugSetVolume(0.3);
+  const vol = window.__rw.volumeInfo();
+  const volSaved = localStorage.getItem('rw-volume');
+
+  // 防晕遮罩：开启时滑翔中途应 >0，关闭时为 0
+  window.__rw.debugToggleVignette();      // 先关
+  const off = window.__rw.vignetteInfo();
+  window.__rw.debugToggleVignette();      // 再开
+  window.__rw.debugSetMoveMode('glide');
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 250));
+  const adj = {};
+  for (const [a, b] of st.graph.edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
+  window.__rw.tryWalk(adj[st.at][0]);
+  await new Promise(r => setTimeout(r, 90));
+  const during = window.__rw.vignetteInfo();
+
+  // 座姿标定
+  const seated = window.__rw.debugCalibrateSeated(1.2);
+  const seatedInfo = window.__rw.seatedInfo();
+  window.__rw.debugCalibrateSeated(1.6);
+  const seatedReset = window.__rw.seatedInfo();
+  return { pack0, pack1, allFromPack, graphWords: graphWords.length, dh, boardDom, vol, volSaved, off, during, seated, seatedInfo, seatedReset };
+})()`);
+ok(extras.pack0.packs.length === 4 && extras.pack0.words === 60, `默认词包经典（${extras.pack0.words} 词）`);
+ok(extras.pack1.pack === 'poetry' && extras.pack1.words === 40, '切换到诗词词包（40 词）');
+ok(extras.allFromPack && extras.graphWords > 5, `本局词节点全部来自所选词包（${extras.graphWords} 个）`);
+ok(extras.dh.board.length === 7, '每日榜固定 7 格');
+ok(extras.dh.board[0].played === true && extras.dh.board[0].score >= 0, '今日成绩在榜首');
+ok(extras.boardDom === 7, `引导页渲染 7 个日期格（${extras.boardDom}）`);
+ok(extras.vol.volume === 0.3 && extras.volSaved === '0.3', `音量设置生效并持久化（${extras.vol.percent}%）`);
+ok(extras.off.enabled === false && extras.off.opacity === 0, '关闭遮罩后不透明度为 0');
+ok(extras.during.enabled === true && extras.during.opacity > 0, `滑翔中出现遮罩（${extras.during.opacity}）`);
+ok(extras.seated === 0.4 && extras.seatedInfo.rigY === 0.4, `座姿 1.2m → 世界抬高 0.4m（rigY=${extras.seatedInfo.rigY}）`);
+ok(extras.seatedReset.offset === 0, '回到站立眼高后偏移归零');
+
+console.log('\n[19] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

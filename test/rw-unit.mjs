@@ -8,7 +8,7 @@
 //   D. 合批几何正确性（边缓冲 / 词球烘焙 / 顶点色回写）
 import { generateGraph } from '../public/rw/js/graph.mjs';
 import fs from 'node:fs';
-import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE } from '../public/rw/js/data.mjs';
+import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
   snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode,
@@ -24,7 +24,9 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
+  parseDailyHistory, appendDailyHistory, dailyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
+import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -797,7 +799,7 @@ section('J. 单文件打包静态检查');
   const BUNDLED = [
     'data.mjs', 'i18n.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
     'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs',
-    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'graph.mjs', 'audio.mjs',
+    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'graph.mjs', 'audio.mjs',
   ];
   const decls = new Map();   // 名字 → 出现的文件
   const dupes = [];
@@ -982,6 +984,87 @@ section('L. 新手引导 / 移动模式 / i18n');
   const empties = Object.entries(EN).filter(([k, v]) => typeof v !== 'string' || (v.length === 0 && k !== '局'));
   eq(empties.length, 0, '英文词典无意外空值', empties.map(([k]) => k).join(','));
   ok(Object.keys(EN).length >= 80, `词典条目 ${Object.keys(EN).length} ≥ 80`);
+}
+
+// ═══════════════════ M. 主题词包 / 7 日榜 / 舒适性 ═══════════════════
+
+section('M. 主题词包');
+
+{
+  eq(PACK_KEYS.join(','), 'classic,poetry,geek,nature', '四个主题词包');
+  for (const k of PACK_KEYS) {
+    const p = WORD_PACKS[k];
+    ok(p.name && p.words.length >= 39, `词包 ${k} 至少 39 词（${p.words.length}）`);
+    eq(new Set(p.words).size, p.words.length, `词包 ${k} 内部无重复`);
+    ok(p.words.every((w) => typeof w === 'string' && w.length >= 1 && w.length <= 4), `词包 ${k} 词长合规`);
+  }
+  eq(WORD_PACKS.classic.words.length, WORDS.length, '经典词包 = 原词库');
+  ok(TOTAL_WORDS > WORDS.length, `总词数 ${TOTAL_WORDS} > 单包（跨包并集）`);
+  eq(normalizePack('poetry'), 'poetry', '合法词包保留');
+  eq(normalizePack('nope'), 'classic', '非法词包回落经典');
+  eq(normalizePack(undefined), 'classic', 'undefined 回落经典');
+}
+
+section('M. 每日 7 日榜');
+
+{
+  eq(parseDailyHistory('').length, 0, '空历史');
+  eq(parseDailyHistory('bad json').length, 0, '坏 JSON');
+  eq(parseDailyHistory('{"a":1}').length, 0, '非数组');
+  const raw = JSON.stringify([
+    { key: '2026-11-07', score: 30, win: false },
+    { key: '2026-11-09', score: 50, win: true },
+    { key: '2026-11-09', score: 60, win: true },
+    { key: 'bad', score: 1 },
+    null,
+  ]);
+  const hist = parseDailyHistory(raw);
+  eq(hist.length, 2, '去重与过滤脏记录');
+  eq(hist[0].key, '2026-11-09', '按日期倒序');
+  ok(hist[0].score === 50 || hist[0].score === 60, '同日保留其一');
+
+  const appended = appendDailyHistory(hist, { key: '2026-11-09', score: 88, win: true, ts: 1 });
+  eq(appended[0].score, 88, '同日成绩覆盖');
+  eq(appended.length, 2, '覆盖不新增条目');
+  eq(appendDailyHistory([], { key: '2026-11-09', score: 1 }).length, 1, '空历史追加');
+
+  const board = dailyBoard([{ key: '2026-11-09', score: 50, win: true }, { key: '2026-11-08', score: 20 }], '2026-11-09', 7);
+  eq(board.length, 7, '榜单固定 7 天');
+  eq(board[0].key, '2026-11-09', '第一格是今天');
+  eq(board[0].played, true, '今天已挑战');
+  eq(board[0].score, 50, '今天分数');
+  eq(board[0].win, true, '今天胜利标记');
+  eq(board[1].short, '11-08', '日期短格式');
+  eq(board[2].played, false, '未挑战的日期为空');
+  eq(board[2].score, 0, '未挑战分数为 0');
+  // 跨月
+  const mb = dailyBoard([], '2026-03-02', 7);
+  eq(mb[1].key, '2026-03-01', '跨月回退正确');
+  eq(mb[2].key, '2026-02-28', '跨月天数正确（2026 非闰年）');
+}
+
+section('M. 舒适性 & 音量');
+
+{
+  eq(vignetteOpacity(0.5, true), 0.55, '中点遮罩最暗');
+  eq(vignetteOpacity(0, true), 0, '起点无遮罩');
+  eq(vignetteOpacity(1, true), 0, '终点无遮罩');
+  eq(vignetteOpacity(0.5, false), 0, '关闭时无遮罩');
+  ok(vignetteOpacity(0.25, true) > 0 && vignetteOpacity(0.25, true) < 0.55, '中途渐入');
+  eq(vignetteOpacity('x', true), 0, '非法进度按 0');
+
+  eq(clampVolume(0.5), 0.5, '音量透传');
+  eq(clampVolume(1.5), 1, '上限钳制');
+  eq(clampVolume(-1), 0, '下限钳制');
+  eq(clampVolume(NaN), 0.8, '非法音量回落 0.8');
+  eq(volumeToPercent(0.8), 80, '百分比换算');
+
+  eq(seatedOffset(1.6), 0, '站立眼高无需偏移');
+  eq(seatedOffset(1.2), 0.4, '坐姿 1.2m → 抬高 0.4m');
+  eq(seatedOffset(0.5), 0.6, '过低眼高钳制 +0.6');
+  eq(seatedOffset(2.5), -0.6, '过高眼高钳制 -0.6');
+  eq(seatedOffset(0), 0, '零值安全');
+  eq(seatedOffset('x'), 0, '非法输入安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

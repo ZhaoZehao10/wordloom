@@ -7,11 +7,28 @@ import { TIMBRES } from './data.mjs';
 let ctx = null;
 let timbreKey = 'wood';
 let muted = false;
+let volume = 0.8;
+let master = null;
 
 function ac() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
+}
+
+/** 主音量节点：所有 2D 音效都经过它，便于统一调音量。 */
+function masterGain() {
+  if (!master) {
+    const a = ac();
+    master = a.createGain();
+    master.gain.value = muted ? 0 : volume;
+    master.connect(a.destination);
+  }
+  return master;
+}
+
+function applyVolume() {
+  if (master) master.gain.value = muted ? 0 : volume;
 }
 
 function tone(freq, dur, { type = 'sine', gain = 0.12, delay = 0, slide = 0 } = {}) {
@@ -27,7 +44,7 @@ function tone(freq, dur, { type = 'sine', gain = 0.12, delay = 0, slide = 0 } = 
     g.gain.setValueAtTime(0, t0);
     g.gain.linearRampToValueAtTime(gain, t0 + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(a.destination);
+    o.connect(g).connect(masterGain());
     o.start(t0);
     o.stop(t0 + dur + 0.05);
   } catch { /* 无音频设备时静默 */ }
@@ -42,8 +59,10 @@ export const audio = {
   unlock() { try { ac(); } catch { /* ignore */ } },
   setTimbre(k) { timbreKey = k; },
   get timbre() { return timbreKey; },
-  setMuted(m) { muted = m; },
+  setMuted(m) { muted = m; applyVolume(); },
   get muted() { return muted; },
+  setVolume(v) { volume = Math.min(1, Math.max(0, Number.isFinite(Number(v)) ? Number(v) : 0.8)); applyVolume(); },
+  get volume() { return volume; },
 };
 
 export const sfx = {

@@ -7,7 +7,7 @@
 //   · 彩蛋：连点标题七次解除步数限制；键盘敲出 1024 触发音效与成就。
 import * as THREE from '../../vendor/three.module.min.js';
 import { VRButton } from '../../vendor/VRButton.js';
-import { WORDS, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
+import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
@@ -20,11 +20,12 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
 import { normalizeMoveMode, nextMoveMode } from './rules.mjs';
+import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from './comfort.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -56,6 +57,11 @@ const state = {
   lang: normalizeLang(localStorage.getItem(LANG_KEY) || 'zh'), // 界面语言
   moveMode: normalizeMoveMode(localStorage.getItem('rw-move') || 'glide'), // 滑翔 / 瞬移
   tutorialDone: parseTutorialDone(localStorage.getItem(TUTORIAL_DONE_KEY) || ''),
+  pack: normalizePack(localStorage.getItem('rw-pack') || 'classic'),
+  volume: clampVolume(localStorage.getItem('rw-volume') ?? 0.8),
+  vignette: localStorage.getItem('rw-vignette') !== '0',
+  seated: Number(localStorage.getItem('rw-seated') || '0') || 0,
+  dailyHistory: parseDailyHistory(localStorage.getItem(DAILY_HISTORY_KEY) || ''),
   frozen: false,                // 视觉回归用：冻结时间相关动画
   round: 0,
   skin: localStorage.getItem('rw-skin') || 'ink',
@@ -94,6 +100,7 @@ let edgeKeys = [];           // 边序号 → key
 
 let pickables = [];             // 可射线对象（合批后只有 1 个）
 let hudGroup = null;            // VR 内 HUD 面板
+let vignetteMesh = null;        // 防晕视野遮罩（挂在相机上）
 let endGroup = null;            // VR 结算面板
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -183,6 +190,23 @@ window.__rw = {
   debugRig: () => ({ x: rig.position.x, y: rig.position.y, z: rig.position.z }),
   debugStartSeeded: (seed) => { startRound('normal', { seed }); return true; },
   debugFreeze: (on) => { state.frozen = on !== false; return state.frozen; },
+  // 词包 / 每日 7 日榜 / 舒适性
+  packInfo: () => ({ pack: state.pack, packs: PACK_KEYS, words: WORD_PACKS[state.pack].words.length, total: TOTAL_WORDS }),
+  packList: () => WORD_PACKS[state.pack].words.slice(),
+  debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); refreshPackUI(); return state.pack; },
+  dailyHistoryInfo: () => ({ history: state.dailyHistory.slice(), board: dailyBoard(state.dailyHistory, dailyKey(), 7) }),
+  volumeInfo: () => ({ volume: state.volume, muted: audio.muted, percent: volumeToPercent(state.volume) }),
+  debugSetVolume: (v) => { state.volume = clampVolume(v); audio.setVolume(state.volume); localStorage.setItem('rw-volume', String(state.volume)); return state.volume; },
+  vignetteInfo: () => ({ enabled: state.vignette, opacity: vignetteMesh ? +vignetteMesh.material.opacity.toFixed(3) : -1 }),
+  debugToggleVignette: () => { state.vignette = !state.vignette; localStorage.setItem('rw-vignette', state.vignette ? '1' : '0'); return state.vignette; },
+  debugCalibrateSeated: (headY) => {
+    const off = seatedOffset(headY);
+    state.seated = off;
+    localStorage.setItem('rw-seated', String(off));
+    rig.position.y = off;
+    return off;
+  },
+  seatedInfo: () => ({ offset: state.seated, rigY: +rig.position.y.toFixed(3) }),
   debugSetMoveMode: (m) => {
     state.moveMode = normalizeMoveMode(m);
     localStorage.setItem('rw-move', state.moveMode);
@@ -216,7 +240,7 @@ window.__rw = {
   // 词集（跨局元进度）
   collectionInfo: () => ({
     count: state.collection.length,
-    progress: collectionProgress(state.collection, WORDS.length),
+    progress: collectionProgress(state.collection, TOTAL_WORDS),
     roundNew: state.roundNew.slice(),
     persisted: parseCollection(localStorage.getItem('rw-collection') || '').length,
   }),
@@ -247,6 +271,9 @@ function initScene() {
   rig = new THREE.Group();
   rig.add(camera);
   scene.add(rig);
+
+  buildVignette();
+  audio.setVolume(state.volume);
 
   scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x201a2e, 0.7));
   const dir = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -570,14 +597,14 @@ function startRound(diffKey, opts = {}) {
   state.round++;
 
   state.graph = generateGraph({
-    words: WORDS,
+    words: WORD_PACKS[state.pack].words,
     steps: diff.steps,
     seed: daily ? dailySeed(daily) : (opts.seed ?? ((Date.now() ^ (state.round * 7919)) >>> 0)),
     wordCount: 14 + diff.steps,
   });
 
   rebuildGraphScene();
-  rig.position.set(0, 0, 0);                    // 回到起点
+  rig.position.set(0, state.seated, 0);         // 回到起点（含座姿偏移）
   updateHud();
   sfx.start();
   $('intro').classList.add('hidden');
@@ -619,6 +646,8 @@ function endRound(win) {
   if (state.isDaily && state.dailyKey) {
     state.daily = dailyRecord({ key: state.dailyKey, score: state.score, win });
     localStorage.setItem('rw-daily', JSON.stringify(state.daily));
+    state.dailyHistory = appendDailyHistory(state.dailyHistory, state.daily);
+    localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(state.dailyHistory));
   }
   refreshAdjacencyVisuals();                    // 关掉所有光环
   fillEnd();
@@ -643,7 +672,7 @@ function resultData(win) {
     quote: state.flavor,
     collectionSize: state.collection.length,
     diffsWon: diffsWon(state.history),
-    lexiconTotal: WORDS.length,
+    lexiconTotal: TOTAL_WORDS,
   });
   return {
     win,
@@ -931,6 +960,29 @@ function menuClick(hand) {
   return applyMenuAction(id);
 }
 
+// ---------------- 防晕视野遮罩 ----------------
+
+function buildVignette() {
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 512;
+  const c = cv.getContext('2d');
+  const g = c.createRadialGradient(256, 256, 110, 256, 256, 256);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(0.62, 'rgba(0,0,0,0.06)');
+  g.addColorStop(1, 'rgba(0,0,0,0.92)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 512, 512);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  vignetteMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthTest: false, depthWrite: false })
+  );
+  vignetteMesh.position.set(0, 0, -0.6);
+  vignetteMesh.renderOrder = 999;
+  camera.add(vignetteMesh);
+}
+
 // ---------------- 词集一览（2D 面板） ----------------
 
 function openCollection() {
@@ -944,7 +996,7 @@ function openCollection() {
     chip.textContent = w;
     grid.appendChild(chip);
   }
-  const prog = collectionProgress(state.collection, WORDS.length);
+  const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('coll-count').textContent = `${prog.collected}/${prog.total}`;
   $('coll').classList.remove('hidden');
   sfx.ui();
@@ -1046,7 +1098,41 @@ function refreshLangUI() {
   if (timbreBtn) timbreBtn.textContent = `♫ ${L('音色')}：${L((TIMBRES[audio.timbre] || TIMBRES.wood).name)}`;
   const muteBtn = $('mute-btn');
   if (muteBtn) muteBtn.textContent = audio.muted ? L('🔇 静音') : `🔊 ${L('音效')}`;
+  const vigBtn = $('vignette-btn');
+  if (vigBtn) vigBtn.textContent = state.vignette ? `🕶 ${L('防晕遮罩')}：${L('开')}` : `🕶 ${L('防晕遮罩')}：${L('关')}`;
+  const vol = $('volume');
+  if (vol) vol.value = String(volumeToPercent(state.volume));
+  refreshPackUI();
   updateHud();
+}
+
+/** 词包选中态。 */
+function refreshPackUI() {
+  document.querySelectorAll('.pack-pick').forEach((b) => {
+    b.classList.toggle('active', b.dataset.pack === state.pack);
+  });
+}
+
+/** 每日 7 日榜渲染（本地成绩）。 */
+function renderDailyBoard() {
+  const box = $('daily-board');
+  if (!box) return;
+  const rows = dailyBoard(state.dailyHistory, dailyKey(), 7);
+  box.innerHTML = rows.map((r) => {
+    const cls = `daily-chip${r.played ? ' played' : ''}${r.win ? ' win' : ''}`;
+    return `<span class="${cls}"><small>${r.short}</small>${r.played ? r.score : '·'}</span>`;
+  }).join('');
+}
+
+/** 座姿标定：按当前眼高计算世界抬高量并应用。 */
+function calibrateSeated() {
+  const y = camera.getWorldPosition(new THREE.Vector3()).y;
+  const off = seatedOffset(y);
+  state.seated = off;
+  localStorage.setItem('rw-seated', String(off));
+  rig.position.y = off;
+  sfx.ui();
+  return off;
 }
 
 // ---------------- 2D DOM ----------------
@@ -1087,6 +1173,33 @@ function wire2D() {
     if (menuOpen) redrawMenu();
     sfx.ui();
   };
+  // 词包选择
+  document.querySelectorAll('.pack-pick').forEach((b) => {
+    b.onclick = () => {
+      state.pack = normalizePack(b.dataset.pack);
+      localStorage.setItem('rw-pack', state.pack);
+      refreshPackUI();
+      sfx.ui();
+    };
+  });
+  // 音量
+  const vol = $('volume');
+  if (vol) {
+    vol.oninput = () => {
+      state.volume = clampVolume(Number(vol.value) / 100);
+      audio.setVolume(state.volume);
+      localStorage.setItem('rw-volume', String(state.volume));
+    };
+  }
+  // 防晕遮罩开关
+  $('vignette-btn').onclick = () => {
+    state.vignette = !state.vignette;
+    localStorage.setItem('rw-vignette', state.vignette ? '1' : '0');
+    refreshLangUI();
+    sfx.ui();
+  };
+  // 座姿标定
+  $('seated-btn').onclick = () => { calibrateSeated(); };
   const savedTimbre = localStorage.getItem('rw-timbre');
   if (savedTimbre && TIMBRES[savedTimbre]) audio.setTimbre(savedTimbre);
   $('mute-btn').onclick = () => {
@@ -1153,7 +1266,7 @@ function applySkinLook() {
 
 function updateHud() {
   // 双份 HUD：intro 卡片一套（局数/词集/累计/最佳），游戏内 HUD 一套
-  const prog = collectionProgress(state.collection, WORDS.length);
+  const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('hud-round').textContent = String(state.round + 1);
   $('hud-collection').textContent = String(prog.collected);
   $('hud-collection-total').textContent = String(prog.total);
@@ -1173,6 +1286,7 @@ function updateHud() {
       ? `${L('今日已完成')} · ${ds.score} ${L('分')}${ds.win ? ` · ${L('抵达 1024')}` : ''}`
       : `${L('今日未完成')} · ${diffName} ${L('难度')}`;
   }
+  renderDailyBoard();
 }
 
 /** 结算页历史摘要（按当前语言生成）。 */
@@ -1194,7 +1308,7 @@ function fillEnd() {
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
   $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}`;
-  const prog = collectionProgress(state.collection, WORDS.length);
+  const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('end-history').textContent = [
     historyLine(),
     `${L('词集')} ${prog.collected}/${prog.total}` + (state.roundNew.length ? `（${L('本局新词')} +${state.roundNew.length}）` : ''),
@@ -1676,6 +1790,12 @@ function animate() {
   }
 
   if (starfield) starfield.rotation.y = t * 0.004;
+
+  // 防晕遮罩：滑翔过程中边缘渐暗
+  if (vignetteMesh) {
+    const p = state.glide ? Math.min(1, state.glide.t) : 0;
+    vignetteMesh.material.opacity = vignetteOpacity(p, state.vignette);
+  }
 
   pollSnapTurn();
   if (menuOpen) updateMenuPose();

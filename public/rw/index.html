@@ -35,6 +35,14 @@
     <div class="row small-row">
       <span id="daily-status" class="mini-label" data-i18n="今日未完成">今日未完成</span>
     </div>
+    <div id="daily-board" class="daily-board"></div>
+    <div class="row small-row">
+      <span class="mini-label" data-i18n="词包">词包</span>
+      <button class="pack-pick" data-pack="classic" data-i18n="经典">经典</button>
+      <button class="pack-pick" data-pack="poetry" data-i18n="诗词">诗词</button>
+      <button class="pack-pick" data-pack="geek" data-i18n="极客">极客</button>
+      <button class="pack-pick" data-pack="nature" data-i18n="自然">自然</button>
+    </div>
     <div class="row small-row">
       <span class="mini-label" data-i18n="难度">难度</span>
       <button class="diff-pick" data-diff="easy" data-i18n="悠然 16步">悠然 16步</button>
@@ -46,6 +54,12 @@
       <button id="timbre-btn" class="ghost">♫ 音色：木鱼</button>
       <button id="mute-btn" class="ghost">🔊 音效</button>
       <button id="lang-btn" class="ghost">🌐 中文</button>
+    </div>
+    <div class="row small-row">
+      <span class="mini-label" data-i18n="音量">音量</span>
+      <input id="volume" type="range" min="0" max="100" value="80" class="volume-range">
+      <button id="vignette-btn" class="ghost">🕶 防晕遮罩：开</button>
+      <button id="seated-btn" class="ghost">🪑 座姿标定</button>
     </div>
     <div class="row small-row">
       <span class="mini-label" data-i18n="存档">存档</span>
