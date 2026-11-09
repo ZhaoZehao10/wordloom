@@ -29,6 +29,9 @@ jobs:
       - name: 桌面端到端
         run: node test/rw-e2e.mjs
 
+      - name: 构建单文件离线版
+        run: node tools/make-offline.mjs
+
       - name: 离线单文件端到端
         run: node test/rw-offline-e2e.mjs
 

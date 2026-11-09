@@ -3,12 +3,13 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { resolveChrome, tempProfile } from './chrome.mjs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const CHROME = resolveChrome();
 const PORT = 9353;
 const FILE = 'dist/拾径-离线版.html';
-// Windows 路径需转成正斜杠，否则 encodeURI 会把反斜杠编码为 %5C，file:// 打不开
-const URL = 'file:///' + encodeURI(path.resolve(FILE).replace(/\\/g, '/')).replace(/#/g, '%23');
+// 用 pathToFileURL 处理 Windows / Linux 差异（Windows 需 file:///D:/...，POSIX 为 file:///home/...）
+const URL = pathToFileURL(path.resolve(FILE)).href;
 
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
