@@ -256,7 +256,7 @@ const menu = await evalJs(`(() => {
   return { open, ids, hit, gap, applied, after };
 })()`);
 ok(menu.open, '握键打开菜单');
-ok(menu.ids.length === 10 && menu.ids.includes('diff:easy') && menu.ids.includes('start'), '菜单按钮齐全', JSON.stringify(menu.ids));
+ok(menu.ids.length === 12 && menu.ids.includes('diff:easy') && menu.ids.includes('move:teleport') && menu.ids.includes('start'), '菜单按钮齐全（含移动模式）', JSON.stringify(menu.ids));
 ok(menu.hit === 'diff:normal', `按钮中心命中正确（${menu.hit}）`);
 ok(menu.gap === null, '行间空隙不命中按钮（不会误点）');
 ok(menu.applied.pending === 'easy', '菜单选难度 → 下一局用 easy');
@@ -493,7 +493,64 @@ ok(fuzz.hook && fuzz.intro, '脏数据后页面仍能正常启动');
 ok(fuzz.best === 0 && fuzz.history === 0 && fuzz.collection === 0 && fuzz.daily === null,
   '脏数据被安全忽略并回落默认值', JSON.stringify(fuzz));
 
-console.log('\n[17] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[17] 新手引导 / 移动模式 / 语言');
+const ux = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  // 先把引导标记清掉，模拟首次进入
+  window.__rw.debugResetTutorial();
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 250));
+  const firstOpen = window.__rw.tutorialInfo();
+  window.__rw.debugDismissTutorial();
+  const afterDismiss = window.__rw.tutorialInfo();
+  const savedFlag = localStorage.getItem('rw-tutorial-done');
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 250));
+  const secondOpen = window.__rw.tutorialInfo();
+
+  // 移动模式：瞬移
+  window.__rw.debugSetMoveMode('teleport');
+  const mode = window.__rw.moveModeInfo();
+  const savedMove = localStorage.getItem('rw-move');
+  const adj = {};
+  for (const [a, b] of st.graph.edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
+  const first = adj[st.at][0];
+  const target = st.graph.nodes[first].pos;
+  window.__rw.tryWalk(first);
+  const teleportState = { glide: !!st.glide, at: st.at === first, rigX: +window.__rw.debugRig().x.toFixed(2), targetX: +target.x.toFixed(2) };
+
+  // 切回滑翔
+  window.__rw.debugSetMoveMode('glide');
+  const first2 = adj[st.at].find((v) => v !== st.at);
+  window.__rw.tryWalk(first2);
+  const glideState = { glide: !!st.glide };
+
+  // 语言
+  window.__rw.debugSetLang('en');
+  const en = {
+    html: document.documentElement.lang,
+    start: document.getElementById('start-btn').textContent.trim(),
+    skin: document.getElementById('skin-btn').textContent.trim(),
+  };
+  window.__rw.debugSetLang('zh');
+  const zh = {
+    html: document.documentElement.lang,
+    start: document.getElementById('start-btn').textContent.trim(),
+  };
+  return { firstOpen, afterDismiss, savedFlag, secondOpen, mode, savedMove, teleportState, glideState, en, zh };
+})()`);
+ok(ux.firstOpen.open === true && ux.firstOpen.done === false, '首次进入自动展示引导');
+ok(ux.afterDismiss.open === false && ux.afterDismiss.done === true, '关闭引导后标记为已完成');
+ok(ux.savedFlag === '1', '引导完成标记已持久化');
+ok(ux.secondOpen.open === false, '再次进入不再展示引导');
+ok(ux.mode === 'teleport' && ux.savedMove === 'teleport', '移动模式切换并持久化');
+ok(ux.teleportState.at && ux.teleportState.glide === false, '瞬移模式：一步到位，无滑翔过程');
+ok(Math.abs(ux.teleportState.rigX - ux.teleportState.targetX) < 0.3, '瞬移后位置即目标点', JSON.stringify(ux.teleportState));
+ok(ux.glideState.glide === true, '切回滑翔模式后恢复滑翔动画');
+ok(ux.en.html === 'en' && ux.en.start === 'Start ▸' && ux.en.skin.includes('Skin'), `英文界面生效（${ux.en.start} / ${ux.en.skin}）`);
+ok(ux.zh.html === 'zh-CN' && ux.zh.start === '开始游走 ▸', '切回中文界面正常');
+
+console.log('\n[18] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

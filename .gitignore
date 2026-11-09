@@ -25,5 +25,9 @@ Thumbs.db
 test/*.png
 *.idsig
 
+# 视觉回归基线需要入库（不受 test/*.png 影响）
+!test/baselines/
+!test/baselines/*.png
+
 # 临时诊断产物
 test/_*

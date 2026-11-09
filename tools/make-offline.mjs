@@ -46,6 +46,7 @@ const vrButtonSrc = stripModule(read(PUB, 'vendor', 'VRButton.js'));
 
 const gameSrc = [
   ['data', 'rw/js/data.mjs'],
+  ['i18n', 'rw/js/i18n.mjs'],         // 语言表（被 menu/main 引用）
   ['rules', 'rw/js/rules.mjs'],       // 依赖 data
   ['geometry', 'rw/js/geometry.mjs'], // 纯数组数学，无依赖
   ['poster', 'rw/js/poster.mjs'],     // 海报绘制，依赖 DOM canvas
@@ -55,6 +56,7 @@ const gameSrc = [
   ['replay', 'rw/js/replay.mjs'],     // 路径回放取样，纯函数
   ['daily', 'rw/js/daily.mjs'],       // 每日挑战日期/种子，纯函数
   ['save', 'rw/js/save.mjs'],         // 存档导入导出，纯函数
+  ['tutorial', 'rw/js/tutorial.mjs'], // 新手引导状态，纯函数
   ['graph', 'rw/js/graph.mjs'],
   ['audio', 'rw/js/audio.mjs'],       // 依赖 data
   ['main', 'rw/js/main.mjs'],         // 依赖以上全部

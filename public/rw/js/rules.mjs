@@ -91,6 +91,22 @@ export function normalizeYaw(yaw) {
   return y;
 }
 
+// ---------------- 移动模式 ----------------
+// glide：滑翔过去（有过程感，但有人会晕）
+// teleport：瞬移（舒适模式，视野内直接到位）
+export const MOVE_MODES = ['glide', 'teleport'];
+
+/** 非法值一律回落 glide。 */
+export function normalizeMoveMode(v) {
+  return MOVE_MODES.includes(v) ? v : 'glide';
+}
+
+/** 循环切换到下一个模式（给设置按钮用）。 */
+export function nextMoveMode(v) {
+  const i = MOVE_MODES.indexOf(normalizeMoveMode(v));
+  return MOVE_MODES[(i + 1) % MOVE_MODES.length];
+}
+
 /**
  * 选一句「一言」。rand 注入便于测试；返回 { flavor, text }。
  * 用取模兜底，防止 rand() 恰好返回 1 时数组越界。

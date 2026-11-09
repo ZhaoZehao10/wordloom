@@ -22,6 +22,9 @@ import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
 import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
+import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
+import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
+import { normalizeMoveMode, nextMoveMode } from './rules.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -50,6 +53,10 @@ const state = {
   isDaily: false,               // 本局是否为每日挑战
   dailyKey: null,               // 每日挑战的日期键
   daily: parseDaily(localStorage.getItem('rw-daily') || ''),  // 今日挑战成绩
+  lang: normalizeLang(localStorage.getItem(LANG_KEY) || 'zh'), // 界面语言
+  moveMode: normalizeMoveMode(localStorage.getItem('rw-move') || 'glide'), // 滑翔 / 瞬移
+  tutorialDone: parseTutorialDone(localStorage.getItem(TUTORIAL_DONE_KEY) || ''),
+  frozen: false,                // 视觉回归用：冻结时间相关动画
   round: 0,
   skin: localStorage.getItem('rw-skin') || 'ink',
   glide: null,                  // {from, to, t} 滑翔动画
@@ -92,6 +99,7 @@ const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
 
 const $ = (id) => document.getElementById(id);
+const L = (s) => tr(s, state.lang);
 
 // ---------------- 启动 ----------------
 
@@ -166,6 +174,28 @@ window.__rw = {
   },
   debugRerollQuote: () => { rerollQuote(); return state.flavor; },
   debugQuote: () => state.flavor,
+  // 新手引导 / 移动模式 / 语言（测试与诊断用）
+  tutorialInfo: () => ({ open: tutorialOpen, done: state.tutorialDone }),
+  debugShowTutorial: () => { showTutorial(); return true; },
+  debugDismissTutorial: () => dismissTutorial(),
+  debugResetTutorial: () => { state.tutorialDone = false; localStorage.removeItem(TUTORIAL_DONE_KEY); return true; },
+  moveModeInfo: () => state.moveMode,
+  debugRig: () => ({ x: rig.position.x, y: rig.position.y, z: rig.position.z }),
+  debugStartSeeded: (seed) => { startRound('normal', { seed }); return true; },
+  debugFreeze: (on) => { state.frozen = on !== false; return state.frozen; },
+  debugSetMoveMode: (m) => {
+    state.moveMode = normalizeMoveMode(m);
+    localStorage.setItem('rw-move', state.moveMode);
+    return state.moveMode;
+  },
+  langInfo: () => ({ lang: state.lang, html: document.documentElement.lang }),
+  debugSetLang: (l) => {
+    state.lang = normalizeLang(l);
+    localStorage.setItem(LANG_KEY, state.lang);
+    refreshLangUI();
+    if (menuOpen) redrawMenu();
+    return state.lang;
+  },
   // 每日挑战
   dailyInfo: () => ({
     key: dailyKey(),
@@ -202,6 +232,8 @@ function initScene() {
   renderer.xr.enabled = true;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   document.body.appendChild(VRButton.createButton(renderer));
+  // 桌面预览：点击画布也可关闭新手引导
+  renderer.domElement.addEventListener('click', () => { if (tutorialOpen) dismissTutorial(); });
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(SKINS[state.skin].bg);
@@ -317,6 +349,8 @@ function aimedNode(hand) {
 
 function onSelect(hand) {
   audio.unlock();
+  // 首次引导优先：任意扳机 = 我知道了
+  if (tutorialOpen) { dismissTutorial(); return; }
   // 回放中：扳机 = 跳过回放
   if (state.mode === 'replaying') { stopReplay(); return; }
   // 菜单打开时，扳机优先用于点选菜单
@@ -467,13 +501,34 @@ function tryWalk(idx, hand = null) {
     if (!spatial) sfx.step(state.visited.length);
     pulse(hand, 0.22, 25);
   }
-  beginGlide(idx);
+  const teleport = state.moveMode === 'teleport';
+  if (teleport) {
+    // 瞬移：直接到位（舒适模式），不经过中间过程
+    const p = node.pos;
+    rig.position.set(p.x, rig.position.y, p.z);
+    state.glide = null;
+  } else {
+    beginGlide(idx);
+  }
   refreshAdjacencyVisuals();
   updateHud();
 
   // 结算推迟到滑翔抵达后（结算面板不能在半路弹出）
   if (node.kind === 'goal') state.pendingEnd = 'win';
   else if (!state.unlimited && state.stepsLeft <= 0) state.pendingEnd = 'fail';
+
+  if (teleport) {
+    // 瞬移没有滑翔结束回调，这里自己处理结算与预输入
+    if (state.pendingEnd) {
+      const w = state.pendingEnd === 'win';
+      state.pendingEnd = null;
+      setTimeout(() => endRound(w), 180);
+    } else if (state.queuedWalk != null) {
+      const q = state.queuedWalk;
+      state.queuedWalk = null;
+      setTimeout(() => tryWalk(q, null), 60);
+    }
+  }
 }
 
 function beginGlide(idx) {
@@ -517,7 +572,7 @@ function startRound(diffKey, opts = {}) {
   state.graph = generateGraph({
     words: WORDS,
     steps: diff.steps,
-    seed: daily ? dailySeed(daily) : ((Date.now() ^ (state.round * 7919)) >>> 0),
+    seed: daily ? dailySeed(daily) : (opts.seed ?? ((Date.now() ^ (state.round * 7919)) >>> 0)),
     wordCount: 14 + diff.steps,
   });
 
@@ -529,6 +584,8 @@ function startRound(diffKey, opts = {}) {
   $('end').classList.add('hidden');
   $('hud').classList.remove('hidden');
   closeEndPanel();
+  // 首次进入：展示 3 步引导（完成一次后不再出现）
+  if (shouldShowTutorial(state.tutorialDone)) showTutorial();
 }
 
 function endRound(win) {
@@ -598,7 +655,7 @@ function resultData(win) {
     steps: r.steps,
     achievements: r.achievements,
     diffName: (DIFFICULTIES.find((d) => d.key === state.diff) || DIFFICULTIES[1]).name,
-    historyLine: summaryLine(summarize(state.history)),
+    historyLine: historyLine(),
   };
 }
 
@@ -692,6 +749,93 @@ function pollSnapTurn() {
   }
 }
 
+// ---------------- 新手引导（首次进入展示 3 步） ----------------
+
+let tutorialGroup = null, tutorialOpen = false, tutorialTimer = null;
+
+function tutorialTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = 900; cv.height = 520;
+  const c = cv.getContext('2d');
+  c.fillStyle = 'rgba(10,14,28,0.95)';
+  rrect(c, 6, 6, 888, 508, 26); c.fill();
+  c.strokeStyle = 'rgba(140,165,255,0.55)'; c.lineWidth = 4; c.stroke();
+
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#eaf0ff'; c.font = 'bold 44px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText(L('新手引导'), 450, 60);
+
+  const steps = [
+    { icon: '◎', title: '寻找光圈', body: '能走的相邻词会亮起脉冲光环' },
+    { icon: '✋', title: '扣扳机前进', body: '手柄射线瞄准光圈，扣扳机走过去' },
+    { icon: '1024', title: '抵达 1024', body: '步数耗尽前走到赤金色的 1024' },
+  ];
+  steps.forEach((s, i) => {
+    const y = 150 + i * 100;
+    c.textAlign = 'left';
+    c.fillStyle = '#6cd0ff'; c.font = 'bold 40px "Segoe UI",sans-serif';
+    c.fillText(s.icon, 70, y);
+    c.fillStyle = '#dfe7ff'; c.font = 'bold 32px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.fillText(L(s.title), 160, y - 14);
+    c.fillStyle = '#8b96b8'; c.font = '24px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.fillText(L(s.body), 160, y + 24);
+  });
+
+  c.textAlign = 'center';
+  c.fillStyle = 'rgba(70,110,200,0.85)'; c.strokeStyle = 'rgba(150,200,255,0.9)'; c.lineWidth = 3;
+  rrect(c, 300, 440, 300, 52, 14); c.fill(); c.stroke();
+  c.fillStyle = '#fff'; c.font = 'bold 28px "PingFang SC",sans-serif';
+  c.fillText(L('知道了，开始吧'), 450, 467);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function ensureTutorial() {
+  if (tutorialGroup) return;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tutorialTexture(), transparent: true, depthTest: false }));
+  spr.scale.set(0.92, 0.53, 1);
+  spr.renderOrder = 60;
+  tutorialGroup = new THREE.Group();
+  tutorialGroup.add(spr);
+  tutorialGroup.visible = false;
+  scene.add(tutorialGroup);
+}
+
+function updateTutorialPose() {
+  if (!tutorialOpen || !tutorialGroup) return;
+  const cp = camera.getWorldPosition(new THREE.Vector3());
+  const q = camera.getWorldQuaternion(new THREE.Quaternion());
+  tutorialGroup.position.copy(new THREE.Vector3(0, -0.02, -1.25).applyQuaternion(q).add(cp));
+  tutorialGroup.quaternion.copy(q);
+}
+
+function showTutorial() {
+  ensureTutorial();
+  // 重新生成贴图，保证语言切换后文案正确
+  tutorialGroup.children[0].material.map.dispose();
+  tutorialGroup.children[0].material.map = tutorialTexture();
+  tutorialGroup.children[0].material.needsUpdate = true;
+  tutorialOpen = true;
+  tutorialGroup.visible = true;
+  updateTutorialPose();
+  clearTimeout(tutorialTimer);
+  tutorialTimer = setTimeout(() => dismissTutorial(), 15000);
+}
+
+function dismissTutorial() {
+  tutorialOpen = false;
+  if (tutorialGroup) tutorialGroup.visible = false;
+  clearTimeout(tutorialTimer);
+  if (!state.tutorialDone) {
+    state.tutorialDone = true;
+    localStorage.setItem(TUTORIAL_DONE_KEY, tutorialDoneValue());
+  }
+  sfx.ui();
+  return true;
+}
+
 // ---------------- VR 内菜单（握键开关 · 射线点选） ----------------
 // 头显里没有 DOM，难度/皮肤/音色只能进 VR 前在电脑上选 —— 这里补一个 3D 菜单：
 // 一张 canvas 贴图贴在视线前方 1.1m，射线命中后用 UV 换算按钮。
@@ -724,6 +868,8 @@ function redrawMenu() {
     pendingDifficulty: state.pendingDiff,
     skin: state.skin,
     timbre: audio.timbre,
+    moveMode: state.moveMode,
+    lang: state.lang,
   });
   menuTex.needsUpdate = true;
 }
@@ -759,6 +905,10 @@ function applyMenuAction(id) {
   } else if (kind === 'timbre') {
     audio.setTimbre(value);
     localStorage.setItem('rw-timbre', value);
+    redrawMenu();
+  } else if (kind === 'move') {
+    state.moveMode = normalizeMoveMode(value);
+    localStorage.setItem('rw-move', state.moveMode);
     redrawMenu();
   } else if (kind === 'start') {
     startRound(state.pendingDiff);
@@ -847,6 +997,7 @@ function applySave(data) {
   localStorage.setItem('rw-diff', state.pendingDiff);
   localStorage.setItem('rw-skin', state.skin);
   localStorage.setItem('rw-timbre', data.settings.timbre);
+  localStorage.setItem('rw-move', state.moveMode);
   if (SKINS[state.skin]) applySkinLook();
   const skinBtn = $('skin-btn');
   if (skinBtn) skinBtn.textContent = `◍ 皮肤：${(SKINS[state.skin] || SKINS.ink).name}`;
@@ -884,6 +1035,20 @@ function resetAll(skipConfirm = false) {
   return true;
 }
 
+function refreshLangUI() {
+  applyDomI18n(document, state.lang);
+  document.documentElement.lang = state.lang === 'en' ? 'en' : 'zh-CN';
+  const langBtn = $('lang-btn');
+  if (langBtn) langBtn.textContent = state.lang === 'en' ? '🌐 English' : '🌐 中文';
+  const skinBtn = $('skin-btn');
+  if (skinBtn) skinBtn.textContent = `◍ ${L('皮肤')}：${L((SKINS[state.skin] || SKINS.ink).name)}`;
+  const timbreBtn = $('timbre-btn');
+  if (timbreBtn) timbreBtn.textContent = `♫ ${L('音色')}：${L((TIMBRES[audio.timbre] || TIMBRES.wood).name)}`;
+  const muteBtn = $('mute-btn');
+  if (muteBtn) muteBtn.textContent = audio.muted ? L('🔇 静音') : `🔊 ${L('音效')}`;
+  updateHud();
+}
+
 // ---------------- 2D DOM ----------------
 
 function wire2D() {
@@ -904,7 +1069,7 @@ function wire2D() {
     state.skin = next;
     localStorage.setItem('rw-skin', next);
     applySkinLook();
-    $('skin-btn').textContent = `◍ 皮肤：${SKINS[next].name}`;
+    refreshLangUI();
     sfx.ui();
   };
   $('timbre-btn').onclick = () => {
@@ -912,14 +1077,21 @@ function wire2D() {
     const next = keys[(keys.indexOf(audio.timbre) + 1) % keys.length];
     audio.setTimbre(next);
     localStorage.setItem('rw-timbre', next);
-    $('timbre-btn').textContent = `♫ 音色：${TIMBRES[next].name}`;
+    refreshLangUI();
+    sfx.ui();
+  };
+  $('lang-btn').onclick = () => {
+    state.lang = state.lang === 'en' ? 'zh' : 'en';
+    localStorage.setItem(LANG_KEY, state.lang);
+    refreshLangUI();
+    if (menuOpen) redrawMenu();
     sfx.ui();
   };
   const savedTimbre = localStorage.getItem('rw-timbre');
-  if (savedTimbre && TIMBRES[savedTimbre]) { audio.setTimbre(savedTimbre); $('timbre-btn').textContent = `♫ 音色：${TIMBRES[savedTimbre].name}`; }
+  if (savedTimbre && TIMBRES[savedTimbre]) audio.setTimbre(savedTimbre);
   $('mute-btn').onclick = () => {
     audio.setMuted(!audio.muted);
-    $('mute-btn').textContent = audio.muted ? '🔇 静音' : '🔊 音效';
+    refreshLangUI();
     if (!audio.muted) sfx.ui();
   };
   $('poster-btn').onclick = () => { sfx.ui(); downloadPoster(); };
@@ -931,14 +1103,14 @@ function wire2D() {
     const r = resultData(state.mode === 'ended');
     const text = `【拾径 · 思想路径】\n${r.poem}\n「${r.quote.text}」—— ${r.quote.flavor}\n${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分（最佳 ${r.best}）`;
     navigator.clipboard?.writeText(text)
-      .then(() => { $('copy-btn').textContent = '已复制 ✓'; setTimeout(() => ($('copy-btn').textContent = '复制路径文案'), 1500); })
+      .then(() => { $('copy-btn').textContent = L('已复制 ✓'); setTimeout(() => ($('copy-btn').textContent = L('复制路径文案')), 1500); })
       .catch(() => {});
   };
   $('title-h').onclick = () => {
     state.titleTaps++;
     if (state.titleTaps >= 7 && !state.unlimited) {
       state.unlimited = true;
-      $('title-h').textContent = '∞ 拾径';
+      $('title-h').textContent = `∞ ${L('拾径')}`;
       sfx.egg();
       updateHud();
     }
@@ -955,6 +1127,9 @@ function wire2D() {
       setTimeout(() => $('egg-flash').classList.add('hidden'), 1600);
     }
   });
+
+  // 初始化界面语言（含皮肤/音色按钮的动态文案）
+  refreshLangUI();
 }
 
 function applySkinLook() {
@@ -993,30 +1168,41 @@ function updateHud() {
   const ds = dailyStatus(state.daily, dk);
   const el = $('daily-status');
   if (el) {
+    const diffName = L((DIFFICULTIES.find((d) => d.key === dailyDifficulty(dk)) || DIFFICULTIES[1]).name);
     el.textContent = ds.played
-      ? `今日已完成 · ${ds.score} 分${ds.win ? ' · 抵达 1024' : ''}`
-      : `今日未完成 · ${dailyDifficulty(dk)} 难度`;
+      ? `${L('今日已完成')} · ${ds.score} ${L('分')}${ds.win ? ` · ${L('抵达 1024')}` : ''}`
+      : `${L('今日未完成')} · ${diffName} ${L('难度')}`;
   }
+}
+
+/** 结算页历史摘要（按当前语言生成）。 */
+function historyLine() {
+  const s = summarize(state.history);
+  if (!s.rounds) return '';
+  if (state.lang === 'en') {
+    return `History ${s.rounds} · win ${Math.round(s.winRate * 100)}% · best ${s.bestScore}`;
+  }
+  return summaryLine(s);
 }
 
 function fillEnd() {
   if (!state.graph) return;
   const r = resultData(state.mode === 'ended');
   $('end-icon').textContent = r.win ? '🏁' : '🌾';
-  $('end-title').textContent = r.win ? '抵达 1024' : '路，未走完';
+  $('end-title').textContent = L(r.win ? '抵达 1024' : '路，未走完');
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
-  $('end-quote-flavor').textContent = `—— ${r.quote.flavor} 一言`;
-  $('end-stats').textContent = `${state.isDaily ? `每日挑战 ${state.dailyKey} · ` : ''}${r.diffName} · ${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分 · 最佳 ${r.best}`;
+  $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
+  $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}`;
   const prog = collectionProgress(state.collection, WORDS.length);
   $('end-history').textContent = [
-    r.historyLine,
-    `词集 ${prog.collected}/${prog.total}` + (state.roundNew.length ? `（本局新词 +${state.roundNew.length}）` : ''),
+    historyLine(),
+    `${L('词集')} ${prog.collected}/${prog.total}` + (state.roundNew.length ? `（${L('本局新词')} +${state.roundNew.length}）` : ''),
   ].filter(Boolean).join(' · ');
   $('end-history').style.display = $('end-history').textContent ? '' : 'none';
   $('end-ach').innerHTML = r.achievements.length
-    ? r.achievements.map((a) => `<span class="ach">${a.icon} ${a.name}</span>`).join('')
-    : '<span class="ach" style="opacity:.45">— 本次无成就 —</span>';
+    ? r.achievements.map((a) => `<span class="ach">${a.icon} ${L(a.name)}</span>`).join('')
+    : `<span class="ach" style="opacity:.45">— ${L('本次无成就')} —</span>`;
   $('end-words').textContent = r.words.length ? r.words.join('、') : '（无）';
 }
 
@@ -1280,12 +1466,12 @@ function updateVrHud() {
   if (!hudGroup.visible) return;
   const spr = hudGroup.userData.spr;
   if (state.mode === 'intro') {
-    spr.material.map = panelTexture(['拾径 · 步数内抵达 1024', '扣扳机 → 开始游走']);
+    spr.material.map = panelTexture(['拾径 · 步数内抵达 1024', L('扣扳机 → 开始游走')]);
   } else {
     const steps = state.unlimited ? '∞' : `${state.stepsLeft}`;
     spr.material.map = panelTexture([
-      `步数 ${steps} · 词 ${state.collected.length} · ${state.score} 分`,
-      '瞄准光环节点 · 扣扳机行走',
+      `${L('步数')} ${steps} · ${L('词')} ${state.collected.length} · ${state.score} ${L('分')}`,
+      L('瞄准光环节点 · 扣扳机行走'),
     ]);
   }
   spr.material.needsUpdate = true;
@@ -1353,10 +1539,10 @@ function endPanelTexture(win) {
   c.textAlign = 'center';
   c.fillStyle = win ? '#ffcf4d' : '#dfe7ff';
   c.font = 'bold 54px "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
-  c.fillText(win ? '抵达 1024' : '路未走完', 256, 80);
+  c.fillText(L(win ? '抵达 1024' : '路未走完'), 256, 80);
   c.fillStyle = '#8b96b8';
   c.font = '28px sans-serif';
-  c.fillText(`${r.diffName} · ${r.steps} 步 · ${r.words.length} 词 · ${r.score} 分`, 256, 126);
+  c.fillText(`${L(r.diffName)} · ${r.steps} ${L('步数')} · ${r.words.length} ${L('词')} · ${r.score} ${L('分')}`, 256, 126);
   if (r.historyLine) {
     c.fillStyle = '#6f7a99';
     c.font = '22px sans-serif';
@@ -1370,7 +1556,7 @@ function endPanelTexture(win) {
   wrapText(c, `「${r.quote.text}」`, 256, 330, 440, 38, 2);
   c.fillStyle = '#8b96b8';
   c.font = '26px sans-serif';
-  c.fillText(`— ${r.quote.flavor} —`, 256, 408);
+  c.fillText(`— ${L(r.quote.flavor)} —`, 256, 408);
 
   // 三个按钮：重放 / 换一句 / 再来一局
   const drawBtn = (label, cx, fill, stroke, color, bold, size = 26) => {
@@ -1383,9 +1569,9 @@ function endPanelTexture(win) {
     c.font = `${bold ? 'bold ' : ''}${size}px "PingFang SC","Microsoft YaHei",sans-serif`;
     c.fillText(label, cx, 477);
   };
-  drawBtn('▶ 重放', 96, 'rgba(40,60,80,0.9)', 'rgba(120,200,190,0.6)', '#bff0e6', false, 26);
-  drawBtn('↻ 换一句', 256, 'rgba(40,52,90,0.9)', 'rgba(140,165,255,0.5)', '#cfd8ff', false, 24);
-  drawBtn('▸ 再来一局', 416, win ? 'rgba(70,110,200,0.85)' : 'rgba(120,70,90,0.85)',
+  drawBtn(L('▶ 重放'), 96, 'rgba(40,60,80,0.9)', 'rgba(120,200,190,0.6)', '#bff0e6', false, 26);
+  drawBtn(L('↻ 换一句'), 256, 'rgba(40,52,90,0.9)', 'rgba(140,165,255,0.5)', '#cfd8ff', false, 24);
+  drawBtn(L('▸ 再来一局'), 416, win ? 'rgba(70,110,200,0.85)' : 'rgba(120,70,90,0.85)',
     win ? 'rgba(150,200,255,0.9)' : 'rgba(255,150,140,0.8)', '#ffffff', true, 23);
 
   const tex = new THREE.CanvasTexture(cv);
@@ -1444,7 +1630,7 @@ function rerollQuote() {
 
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
-  const t = performance.now() / 1000;
+  const t = state.frozen ? 0 : performance.now() / 1000;
 
   // 路径回放：镜头沿足迹巡览
   if (state.replay) {
@@ -1493,6 +1679,7 @@ function animate() {
 
   pollSnapTurn();
   if (menuOpen) updateMenuPose();
+  if (tutorialOpen) updateTutorialPose();
   updateVrHud();
   renderer.render(scene, camera);
 }

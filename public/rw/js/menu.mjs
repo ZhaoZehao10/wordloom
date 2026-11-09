@@ -16,15 +16,19 @@ const ROW_GAP = 14;
  * 菜单布局。返回 { buttons: [{id,label,row,x,y,w,h}], rows: [{title, y}] }
  * 坐标均为 canvas 像素，原点左上。
  */
+import { tr } from './i18n.mjs';
+
 export function buildMenuLayout({
   difficulties = ['悠然', '标准', '紧绷'],
   skins = ['墨', '朱砂', '青瓷'],
   timbres = ['木鱼', '电子', '风铃'],
+  moves = ['滑翔', '瞬移'],
 } = {}) {
   const rows = [
     { title: '难度（下一局生效）', items: difficulties.map((label, i) => ({ id: `diff:${['easy', 'normal', 'hard'][i]}`, label })) },
     { title: '皮肤', items: skins.map((label, i) => ({ id: `skin:${['ink', 'cinnabar', 'celadon'][i]}`, label })) },
     { title: '音色', items: timbres.map((label, i) => ({ id: `timbre:${['wood', 'synth', 'chime'][i]}`, label })) },
+    { title: '移动', items: moves.map((label, i) => ({ id: `move:${['glide', 'teleport'][i]}`, label })) },
   ];
 
   const buttons = [];
@@ -75,11 +79,12 @@ export function hitTestMenu(buttons, u, v) {
 }
 
 /** 选中态：用于给按钮画高亮（纯函数，便于测试）。 */
-export function isSelected(id, { difficulty = 'normal', skin = 'ink', timbre = 'wood' } = {}) {
+export function isSelected(id, { difficulty = 'normal', skin = 'ink', timbre = 'wood', moveMode = 'glide' } = {}) {
   const [kind, value] = id.split(':');
   if (kind === 'diff') return value === difficulty;
   if (kind === 'skin') return value === skin;
   if (kind === 'timbre') return value === timbre;
+  if (kind === 'move') return value === moveMode;
   return false;
 }
 
@@ -88,7 +93,11 @@ export function isSelected(id, { difficulty = 'normal', skin = 'ink', timbre = '
  */
 export function drawMenu(ctx, state = {}) {
   const { buttons, rowTitles, width, height } = buildMenuLayout();
-  const { difficulty = 'normal', skin = 'ink', timbre = 'wood', pendingDifficulty = 'normal' } = state;
+  const {
+    difficulty = 'normal', skin = 'ink', timbre = 'wood',
+    pendingDifficulty = 'normal', moveMode = 'glide', lang = 'zh',
+  } = state;
+  const T = (s) => tr(s, lang);
 
   // 背板
   ctx.fillStyle = 'rgba(10,14,28,0.94)';
@@ -102,17 +111,17 @@ export function drawMenu(ctx, state = {}) {
   ctx.font = 'bold 44px "PingFang SC","Microsoft YaHei",sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('拾径 · 设置', width / 2, 52);
+  ctx.fillText(T('拾径 · 设置'), width / 2, 52);
 
   // 行标题
   ctx.font = '26px "PingFang SC",sans-serif';
   ctx.fillStyle = '#8b96b8';
   ctx.textAlign = 'left';
-  for (const r of rowTitles) ctx.fillText(r.title, 40, r.y + 16);
+  for (const r of rowTitles) ctx.fillText(T(r.title), 40, r.y + 16);
 
   // 按钮
   for (const b of buttons) {
-    const sel = isSelected(b.id, { difficulty: pendingDifficulty, skin, timbre });
+    const sel = isSelected(b.id, { difficulty: pendingDifficulty, skin, timbre, moveMode });
     const isStart = b.id === 'start';
     ctx.fillStyle = isStart
       ? 'rgba(70,110,200,0.85)'
@@ -128,14 +137,14 @@ export function drawMenu(ctx, state = {}) {
     ctx.fillStyle = isStart ? '#ffffff' : sel ? '#bfe9ff' : '#dfe7ff';
     ctx.font = `${isStart ? 'bold ' : ''}${isStart ? 34 : 30}px "PingFang SC","Microsoft YaHei",sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1);
+    ctx.fillText(T(b.label), b.x + b.w / 2, b.y + b.h / 2 + 1);
   }
 
   // 提示
   ctx.fillStyle = '#5f6a88';
   ctx.font = '22px "PingFang SC",sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('扣扳机点选 · 再按握键收起', width / 2, height - 26);
+  ctx.fillText(T('扣扳机点选 · 再按握键收起'), width / 2, height - 26);
 
   return { buttons, rowTitles, width, height };
 }

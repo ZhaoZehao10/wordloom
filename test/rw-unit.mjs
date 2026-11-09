@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
-  snapTurn, normalizeYaw,
+  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode,
 } from '../public/rw/js/rules.mjs';
 import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
@@ -27,6 +27,8 @@ import {
 } from '../public/rw/js/daily.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
+import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
+import { tr, normalizeLang, EN } from '../public/rw/js/i18n.mjs';
 import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
@@ -473,8 +475,8 @@ section('F. VR 菜单');
   const { buttons, rowTitles, width, height } = buildMenuLayout();
   eq(width, MENU_W, '菜单宽度常量一致');
   eq(height, MENU_H, '菜单高度常量一致');
-  eq(rowTitles.length, 3, '菜单 3 行（难度/皮肤/音色）');
-  eq(buttons.length, 10, '菜单按钮总数 = 3×3 选项 + 1 开始');
+  eq(rowTitles.length, 4, '菜单 4 行（难度/皮肤/音色/移动）');
+  eq(buttons.length, 12, '菜单按钮总数 = 3×3 + 移动×2 + 1 开始');
 
   // id 唯一
   eq(new Set(buttons.map((b) => b.id)).size, buttons.length, '按钮 id 唯一');
@@ -531,10 +533,10 @@ section('F. VR 菜单');
   };
   const layout = drawMenu(ctx, { pendingDifficulty: 'hard', skin: 'celadon', timbre: 'chime' });
   ok(texts.includes('拾径 · 设置'), '菜单画出标题');
-  for (const label of ['悠然', '标准', '紧绷', '墨', '朱砂', '青瓷', '木鱼', '电子', '风铃', '开始游走']) {
+  for (const label of ['悠然', '标准', '紧绷', '墨', '朱砂', '青瓷', '木鱼', '电子', '风铃', '滑翔', '瞬移', '开始游走']) {
     ok(texts.includes(label), `菜单画出按钮「${label}」`);
   }
-  eq(layout.buttons.length, 10, 'drawMenu 返回布局完整');
+  eq(layout.buttons.length, 12, 'drawMenu 返回布局完整');
 }
 
 // ═══════════════════ G. 本地战绩统计 ═══════════════════
@@ -793,9 +795,9 @@ section('J. 单文件打包静态检查');
 
 {
   const BUNDLED = [
-    'data.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
+    'data.mjs', 'i18n.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
     'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs',
-    'daily.mjs', 'save.mjs', 'graph.mjs', 'audio.mjs',
+    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'graph.mjs', 'audio.mjs',
   ];
   const decls = new Map();   // 名字 → 出现的文件
   const dupes = [];
@@ -941,6 +943,45 @@ section('K. 可访问性对比度');
   };
   const bad = auditSkin(badSkin);
   ok(bad.some((r) => !r.pass), '低对比度皮肤会被审计拦下', JSON.stringify(bad.map((r) => r.pass)));
+}
+
+// ═══════════════════ L. 新手引导 / 移动模式 / 界面语言 ═══════════════════
+
+section('L. 新手引导 / 移动模式 / i18n');
+
+{
+  eq(TUTORIAL_STEPS.length, 3, '引导共 3 步');
+  ok(TUTORIAL_STEPS.every((s) => s.icon && s.key), '每步都有图标与文案 key');
+  eq(parseTutorialDone('1'), true, '标记 1 = 已完成');
+  eq(parseTutorialDone('0'), false, '标记 0 = 未完成');
+  eq(parseTutorialDone(''), false, '空标记 = 未完成');
+  eq(parseTutorialDone(null), false, 'null = 未完成');
+  eq(shouldShowTutorial(false), true, '未完成 → 展示引导');
+  eq(shouldShowTutorial(true), false, '已完成 → 不再展示');
+  eq(tutorialDoneValue(), '1', '完成值固定为 1');
+}
+
+{
+  eq(MOVE_MODES.join(','), 'glide,teleport', '两种移动模式');
+  eq(normalizeMoveMode('teleport'), 'teleport', '合法值保留');
+  eq(normalizeMoveMode('weird'), 'glide', '非法值回落滑翔');
+  eq(normalizeMoveMode(undefined), 'glide', 'undefined 回落滑翔');
+  eq(nextMoveMode('glide'), 'teleport', '滑翔 → 瞬移');
+  eq(nextMoveMode('teleport'), 'glide', '瞬移 → 滑翔（循环）');
+  eq(nextMoveMode('bad'), 'teleport', '非法值按滑翔处理后再切换');
+}
+
+{
+  // i18n：默认中文原样；英文查表；缺词回落中文
+  eq(normalizeLang('en'), 'en', '合法语言 en');
+  eq(normalizeLang('fr'), 'zh', '非法语言回落中文');
+  eq(tr('开始游走 ▸', 'zh'), '开始游走 ▸', '中文原样返回');
+  eq(tr('开始游走 ▸', 'en'), 'Start ▸', '英文查表');
+  eq(tr('不存在的词条', 'en'), '不存在的词条', '缺词回落中文（不会空白）');
+  // 词典完整性：所有 key 的英文有定义（'局' 有意映射为空串，用于「第 N 局」的英文语序）
+  const empties = Object.entries(EN).filter(([k, v]) => typeof v !== 'string' || (v.length === 0 && k !== '局'));
+  eq(empties.length, 0, '英文词典无意外空值', empties.map(([k]) => k).join(','));
+  ok(Object.keys(EN).length >= 80, `词典条目 ${Object.keys(EN).length} ≥ 80`);
 }
 
 // ═══════════════════ 汇总 ═══════════════════
