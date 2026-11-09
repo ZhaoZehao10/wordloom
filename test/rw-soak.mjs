@@ -2,9 +2,8 @@
 // 连续反复开局/走子/结算，观察 JS 堆增长与帧率漂移。
 // 这类问题（纹理/几何未释放）在短测试里看不出来，跑几十局才会暴露。
 //
-// 通过标准（无 CPU 限速）：
+// 通过标准（帧率门禁默认关闭，可用 SOAK_FPS_MIN 开启）：
 //   · 热身后的堆增长 < 40 MB 且 < 60%
-//   · 采样帧率 ≥ 50
 //   · 渲染结构（drawcall/三角形）在结束时与开始时同量级
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -13,6 +12,8 @@ import { resolveChrome, tempProfile } from './chrome.mjs';
 const URL = 'https://localhost:8543/rw/index.html';
 const ROUNDS = Number(process.env.SOAK_ROUNDS || 60);
 const MAX_MS = Number(process.env.SOAK_MS || 90000);
+// 帧率门禁默认关闭：CI 的软件渲染环境帧率不代表真机性能（性能由 rw-perf 单独把关）
+const FPS_MIN = Number(process.env.SOAK_FPS_MIN || 0);
 const PROFILE = tempProfile('rw-soak');
 
 const chrome = spawn(resolveChrome(), [
@@ -132,7 +133,7 @@ console.log('soak 结果:', JSON.stringify(result));
 const problems = [];
 if (result.heapGrowthMB > 40) problems.push(`堆增长 ${result.heapGrowthMB}MB > 40MB`);
 if (result.heapGrowthPct > 60) problems.push(`堆增长 ${result.heapGrowthPct}% > 60%`);
-if (result.fps < 50) problems.push(`帧率 ${result.fps} < 50`);
+if (FPS_MIN > 0 && result.fps < FPS_MIN) problems.push(`帧率 ${result.fps} < ${FPS_MIN}（SOAK_FPS_MIN 设置）`);
 if (result.drawCalls[1] > result.drawCalls[0] * 2 + 10) problems.push(`drawcall 从 ${result.drawCalls[0]} 涨到 ${result.drawCalls[1]}`);
 if (errors.length) problems.push(`运行期异常 ${errors.length} 条`);
 
