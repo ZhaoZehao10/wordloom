@@ -18,6 +18,7 @@ const SUITES = [
   { name: '离线单文件打包', file: 'tools/make-offline.mjs' },
   { name: '桌面端到端', file: 'test/rw-e2e.mjs', server: true },
   { name: '离线版端到端', file: 'test/rw-offline-e2e.mjs' },
+  { name: '稳定性 soak', file: 'test/rw-soak.mjs', slow: true, server: true },
   { name: '浏览器性能', file: 'test/rw-perf.mjs', slow: true, server: true },
 ].filter((s) => !(FAST && s.slow));
 

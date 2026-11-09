@@ -53,6 +53,8 @@ const gameSrc = [
   ['stats', 'rw/js/stats.mjs'],       // 本地战绩统计，纯函数
   ['spatial', 'rw/js/spatial.mjs'],   // 空间音效 PCM 合成，纯函数
   ['replay', 'rw/js/replay.mjs'],     // 路径回放取样，纯函数
+  ['daily', 'rw/js/daily.mjs'],       // 每日挑战日期/种子，纯函数
+  ['save', 'rw/js/save.mjs'],         // 存档导入导出，纯函数
   ['graph', 'rw/js/graph.mjs'],
   ['audio', 'rw/js/audio.mjs'],       // 依赖 data
   ['main', 'rw/js/main.mjs'],         // 依赖以上全部

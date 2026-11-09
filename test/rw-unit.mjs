@@ -23,6 +23,11 @@ import {
 } from '../public/rw/js/spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
+  dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
+} from '../public/rw/js/daily.mjs';
+import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
+import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
+import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
@@ -789,7 +794,8 @@ section('J. 单文件打包静态检查');
 {
   const BUNDLED = [
     'data.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
-    'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs', 'graph.mjs', 'audio.mjs',
+    'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs',
+    'daily.mjs', 'save.mjs', 'graph.mjs', 'audio.mjs',
   ];
   const decls = new Map();   // 名字 → 出现的文件
   const dupes = [];
@@ -812,6 +818,129 @@ section('J. 单文件打包静态检查');
   const imported = [...mainSrc.matchAll(/from\s+'\.\/([\w.-]+\.mjs)'/g)].map((x) => x[1]);
   const missing = imported.filter((f) => f !== 'main.mjs' && !BUNDLED.includes(f));
   eq(missing.length, 0, 'make-offline 打包清单覆盖 main.mjs 的全部依赖', missing.join(', '));
+}
+
+// ═══════════════════ K. 每日挑战 / 存档 / 可访问性 ═══════════════════
+
+section('K. 每日挑战');
+
+{
+  eq(dailyKey(new Date(2026, 10, 9)), '2026-11-09', '日期键补零格式');
+  eq(dailyKey(new Date(2026, 0, 1)), '2026-01-01', '年初日期键');
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(dailyKey('坏日期')), '非法日期回落到今天且格式正确');
+
+  const a = dailySeed('2026-11-09');
+  const b = dailySeed('2026-11-09');
+  const c = dailySeed('2026-11-10');
+  ok(Number.isInteger(a) && a >= 0 && a <= 0xffffffff, '种子为 32 位无符号整数');
+  eq(a, b, '同一天种子相同（全球同图）');
+  ok(a !== c, '不同天种子不同', `${a} vs ${c}`);
+  eq(dailySeed(''), dailySeed(''), '空键不崩');
+
+  // 难度三天一轮
+  const d1 = dailyDifficulty('2026-11-09');
+  const d2 = dailyDifficulty('2026-11-10');
+  const d3 = dailyDifficulty('2026-11-11');
+  const d4 = dailyDifficulty('2026-11-12');
+  ok([d1, d2, d3].every((x) => ['easy', 'normal', 'hard'].includes(x)), '难度取值合法');
+  ok(new Set([d1, d2, d3]).size === 3, '连续三天难度各不相同', `${d1},${d2},${d3}`);
+  eq(d4, d1, '第四天回到第一天难度（三天一轮）');
+  eq(dailyDifficulty('坏日期'), 'normal', '非法日期回落 normal');
+}
+
+{
+  eq(parseDaily(''), null, '空字符串 → null');
+  eq(parseDaily('坏 json'), null, '坏 JSON → null');
+  eq(parseDaily('{"key":"2026-11-09"}'), null, '缺分数 → null');
+  eq(parseDaily('{"key":"11-09","score":10}'), null, '日期键格式不对 → null');
+  const okDaily = parseDaily('{"key":"2026-11-09","score":88,"win":true}');
+  ok(okDaily && okDaily.score === 88 && okDaily.win === true, '合法记录解析');
+
+  eq(dailyStatus(null, '2026-11-09'), { played: false, score: 0, win: false }, '无记录 → 未完成');
+  eq(dailyStatus(okDaily, '2026-11-10'), { played: false, score: 0, win: false }, '跨天后旧记录失效');
+  eq(dailyStatus(okDaily, '2026-11-09'), { played: true, score: 88, win: true }, '当天记录 → 已完成');
+
+  const rec = dailyRecord({ key: '2026-11-09', score: 120, win: false, ts: 1 });
+  eq(rec, { key: '2026-11-09', score: 120, win: false, ts: 1 }, '成绩记录结构');
+  eq(dailyRecord({ key: 'x', score: NaN }).score, 0, '非法分数归零');
+}
+
+section('K. 存档导入导出');
+
+{
+  const text = exportSave({
+    best: 321, history: [{ win: true, score: 10, steps: 3, words: 2 }],
+    collection: ['光', '熵', '光'], diff: 'hard', skin: 'celadon', timbre: 'chime',
+  });
+  const d = JSON.parse(text);
+  eq(d.app, SAVE_APP, '存档标记');
+  eq(d.version, SAVE_VERSION, '存档版本');
+  eq(typeof d.exportedAt, 'string', '导出时间');
+  eq(d.best, 321, '最佳分导出');
+  eq(d.settings.diff, 'hard', '设置导出');
+  // 去重与截断
+  const big = exportSave({ history: new Array(100).fill({ win: true, score: 1, steps: 1, words: 1 }), collection: ['a', 'a', 'b'] });
+  const bd = JSON.parse(big);
+  eq(bd.history.length, 60, '历史最多导出 60 条');
+  eq(bd.collection.length, 2, '词集导出前去重');
+}
+
+{
+  const src = exportSave({ best: 99, history: [{ win: false, score: 5, steps: 4, words: 1 }], collection: ['梦'], diff: 'easy', skin: 'ink', timbre: 'wood' });
+  const r = importSave(src);
+  ok(r.ok, '合法存档导入成功');
+  eq(r.data.best, 99, '导入最佳分');
+  eq(r.data.collection, ['梦'], '导入词集');
+  eq(r.data.settings.diff, 'easy', '导入难度');
+
+  eq(importSave('').ok, false, '空内容拒绝');
+  eq(importSave('not json').ok, false, '坏 JSON 拒绝');
+  eq(importSave('[]').ok, false, '数组拒绝');
+  eq(importSave(JSON.stringify({ app: 'other', version: 1 })).ok, false, '其它应用存档拒绝');
+  eq(importSave(JSON.stringify({ app: SAVE_APP })).ok, false, '缺版本号拒绝');
+  const future = importSave(JSON.stringify({ app: SAVE_APP, version: SAVE_VERSION + 1 }));
+  ok(!future.ok && future.error.includes('版本'), '未来版本拒绝', future.error);
+
+  // 脏字段被清洗
+  const dirty = importSave(JSON.stringify({
+    app: SAVE_APP, version: 1, best: -5,
+    history: [{ win: 'yes' }, { win: true, score: 1, steps: 1, words: 1 }],
+    collection: ['ok', '', null, 'ok', 'x'.repeat(50)],
+    settings: { diff: 'insane', skin: 'nope', timbre: 'nope' },
+  }));
+  ok(dirty.ok, '脏字段存档仍可导入');
+  eq(dirty.data.best, 0, '负分归零');
+  eq(dirty.data.history.length, 1, '非法战绩被过滤');
+  eq(dirty.data.collection, ['ok'], '非法词集项被过滤');
+  eq(dirty.data.settings.diff, 'normal', '非法难度回落');
+
+  const rv = resetValues();
+  ok(rv['rw-best'] === '0' && rv['rw-history'] === '[]' && rv['rw-collection'] === '[]', '重置默认值正确');
+}
+
+section('K. 可访问性对比度');
+
+{
+  eq(hexToRgb(0xffffff), [1, 1, 1], '白色解析');
+  eq(hexToRgb(0x000000), [0, 0, 0], '黑色解析');
+  eq(hexToRgb('#ff0000'), [1, 0, 0], '带 # 的十六进制');
+  eq(relativeLuminance(0xffffff), 1, '白色相对亮度 1');
+  eq(relativeLuminance(0x000000), 0, '黑色相对亮度 0');
+  eq(Math.round(contrastRatio(0xffffff, 0x000000)), 21, '黑白对比度 21:1');
+  eq(Math.round(contrastRatio(0x000000, 0xffffff)), 21, '对比度对称');
+
+  // 全部皮肤必须通过 AA 阈值（以后换配色若看不清会直接测试失败）
+  const failures = auditAllSkins(SKINS);
+  eq(failures.length, 0, '所有皮肤通过 WCAG 对比度阈值',
+    failures.map((f) => `${f.skin}:${f.pair}=${f.ratio}`).join('; '));
+
+  // 反向验证：故意给一套低对比度皮肤，审计必须报错
+  const badSkin = {
+    bg: 0x888888, word: 0x8a8a8a, goal: 0x8b8b8b, start: 0x8c8c8c,
+    line: 0x878787, halo: 0x8d8d8d,
+  };
+  const bad = auditSkin(badSkin);
+  ok(bad.some((r) => !r.pass), '低对比度皮肤会被审计拦下', JSON.stringify(bad.map((r) => r.pass)));
 }
 
 // ═══════════════════ 汇总 ═══════════════════

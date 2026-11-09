@@ -413,7 +413,87 @@ const ach = await evalJs(`(async () => {
 ok(ach.includes('词集三十'), `词集 ≥30 成就生效（${ach.trim().replace(/\\s+/g, ' ')}）`);
 ok(ach.includes('三途皆涉'), '三难度全胜成就生效');
 
-console.log('\n[14] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[14] 每日挑战');
+const daily = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  const info = window.__rw.dailyInfo();
+  window.__rw.debugStartDaily();
+  await new Promise(r => setTimeout(r, 250));
+  const snap = () => JSON.stringify({
+    n: st.graph.nodes.map((n) => [n.word, +n.pos.x.toFixed(4), +n.pos.z.toFixed(4)]),
+    e: st.graph.edges,
+  });
+  const g1 = snap();
+  const isDaily1 = st.isDaily;
+  const diff1 = st.diff;
+  const steps1 = st.stepsLeft;
+  window.__rw.debugStartDaily();          // 同一天再进一次
+  await new Promise(r => setTimeout(r, 250));
+  const g2 = snap();
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  const after = window.__rw.dailyInfo();
+  return {
+    key: info.key, seed: info.seed, diff: info.difficulty,
+    sameGraph: g1 === g2, isDaily1, diff1, steps1,
+    after, text: document.getElementById('daily-status').textContent,
+    statsLine: document.getElementById('end-stats').textContent,
+  };
+})()`);
+ok(/^\d{4}-\d{2}-\d{2}$/.test(daily.key), `日期键格式 ${daily.key}`);
+ok(Number.isInteger(daily.seed) && daily.seed > 0, `种子稳定生成（${daily.seed}）`);
+ok(daily.sameGraph, '同一天重复进入 → 完全相同的词图（每日固定）');
+ok(daily.isDaily1 === true, '每日挑战标记正确');
+ok(daily.steps1 === { easy: 16, normal: 12, hard: 9 }[daily.diff1], `每日难度与步数一致（${daily.diff1}/${daily.steps1}）`);
+ok(daily.after.status.played === true, '完成后记录为已挑战');
+ok(daily.text.includes('已完成'), `引导页显示每日状态「${daily.text}」`);
+ok(daily.statsLine.includes('每日挑战'), `结算页标明每日挑战「${daily.statsLine}」`);
+
+console.log('\n[15] 存档导出 / 导入 / 重置');
+const save = await evalJs(`(() => {
+  const st = window.__rw.state;
+  st.best = 777; st.collection = ['光', '熵', '梦']; st.history = [];
+  const text = window.__rw.exportSaveText();
+  const parsed = JSON.parse(text);
+  st.best = 0; st.collection = [];
+  const ok1 = window.__rw.importSaveText(text);
+  const restored = { best: st.best, coll: st.collection.length };
+  const bad = window.__rw.importSaveText('{"app":"other","version":1}');
+  const didReset = window.__rw.resetAll();
+  return {
+    parsed, ok: ok1.ok, restored, badOk: bad.ok, didReset,
+    afterReset: { best: st.best, coll: st.collection.length },
+  };
+})()`);
+ok(save.parsed.app === 'wordloom-vr' && save.parsed.version === 1, '导出存档格式正确');
+ok(save.ok && save.restored.best === 777 && save.restored.coll === 3, '导入恢复最佳分与词集', JSON.stringify(save.restored));
+ok(save.badOk === false, '其它应用的存档被拒绝');
+ok(save.didReset && save.afterReset.best === 0 && save.afterReset.coll === 0, '重置清空进度');
+
+console.log('\n[16] 存储脏数据注入（健壮性）');
+await evalJs(`(() => {
+  localStorage.setItem('rw-history', '{{{bad');
+  localStorage.setItem('rw-collection', '"not-array"');
+  localStorage.setItem('rw-best', 'abc');
+  localStorage.setItem('rw-daily', '{"key":123}');
+  localStorage.setItem('rw-diff', 'weird');
+  return true;
+})()`);
+await send('Page.reload');
+await sleep(2600);
+const fuzz = await evalJs(`({
+  hook: !!window.__rw,
+  intro: !!document.getElementById('intro'),
+  best: window.__rw ? window.__rw.state.best : -1,
+  history: window.__rw ? window.__rw.state.history.length : -1,
+  collection: window.__rw ? window.__rw.state.collection.length : -1,
+  daily: window.__rw ? window.__rw.state.daily : 'missing',
+})`);
+ok(fuzz.hook && fuzz.intro, '脏数据后页面仍能正常启动');
+ok(fuzz.best === 0 && fuzz.history === 0 && fuzz.collection === 0 && fuzz.daily === null,
+  '脏数据被安全忽略并回落默认值', JSON.stringify(fuzz));
+
+console.log('\n[17] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

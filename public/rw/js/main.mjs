@@ -20,6 +20,8 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord } from './daily.mjs';
+import { exportSave, importSave, resetValues } from './save.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -45,6 +47,9 @@ const state = {
   collection: parseCollection(localStorage.getItem('rw-collection') || ''), // 跨局词集
   roundNew: [],                 // 本局新收录（词集里原本没有的）
   diff: 'normal',               // 本局难度 key
+  isDaily: false,               // 本局是否为每日挑战
+  dailyKey: null,               // 每日挑战的日期键
+  daily: parseDaily(localStorage.getItem('rw-daily') || ''),  // 今日挑战成绩
   round: 0,
   skin: localStorage.getItem('rw-skin') || 'ink',
   glide: null,                  // {from, to, t} 滑翔动画
@@ -161,6 +166,23 @@ window.__rw = {
   },
   debugRerollQuote: () => { rerollQuote(); return state.flavor; },
   debugQuote: () => state.flavor,
+  // 每日挑战
+  dailyInfo: () => ({
+    key: dailyKey(),
+    seed: dailySeed(dailyKey()),
+    difficulty: dailyDifficulty(dailyKey()),
+    status: dailyStatus(state.daily, dailyKey()),
+    isDaily: state.isDaily,
+  }),
+  debugStartDaily: () => startRound(null, { daily: dailyKey() }),
+  // 存档
+  exportSaveText: () => exportSave(collectSave()),
+  importSaveText: (text) => {
+    const r = importSave(text);
+    if (r.ok) applySave(r.data);
+    return r.ok ? { ok: true, best: r.data.best, collection: r.data.collection.length } : r;
+  },
+  resetAll: () => resetAll(true),
   // 词集（跨局元进度）
   collectionInfo: () => ({
     count: state.collection.length,
@@ -463,11 +485,20 @@ function beginGlide(idx) {
 
 // ---------------- 回合流程 ----------------
 
-function startRound(diffKey) {
-  const diff = DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1];
+function startRound(diffKey, opts = {}) {
+  // 每日挑战：难度由日期轮换决定，种子固定 → 同一天所有人同一张图
+  const daily = typeof opts.daily === 'string' ? opts.daily : null;
+  const diff = daily
+    ? (DIFFICULTIES.find((d) => d.key === dailyDifficulty(daily)) || DIFFICULTIES[1])
+    : (DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1]);
+
   state.diff = diff.key;
-  state.pendingDiff = diff.key;                 // 记住难度，跨局/跨会话生效
-  localStorage.setItem('rw-diff', diff.key);
+  state.isDaily = !!daily;
+  state.dailyKey = daily;
+  if (!daily) {
+    state.pendingDiff = diff.key;               // 记住难度，跨局/跨会话生效
+    localStorage.setItem('rw-diff', diff.key);
+  }
   state.stepsMax = diff.steps;
   state.stepsLeft = diff.steps;
   state.unlimited = false;
@@ -484,7 +515,9 @@ function startRound(diffKey) {
   state.round++;
 
   state.graph = generateGraph({
-    words: WORDS, steps: diff.steps, seed: (Date.now() ^ (state.round * 7919)) >>> 0,
+    words: WORDS,
+    steps: diff.steps,
+    seed: daily ? dailySeed(daily) : ((Date.now() ^ (state.round * 7919)) >>> 0),
     wordCount: 14 + diff.steps,
   });
 
@@ -525,6 +558,11 @@ function endRound(win) {
     unlimited: state.unlimited,
   }, HISTORY_LIMIT);
   localStorage.setItem('rw-history', serializeHistory(state.history));
+  // 每日挑战成绩（每天只保留最新一次）
+  if (state.isDaily && state.dailyKey) {
+    state.daily = dailyRecord({ key: state.dailyKey, score: state.score, win });
+    localStorage.setItem('rw-daily', JSON.stringify(state.daily));
+  }
   refreshAdjacencyVisuals();                    // 关掉所有光环
   fillEnd();
   $('end').classList.remove('hidden');
@@ -768,10 +806,93 @@ function openCollection() {
 
 function closeCollection() { $('coll').classList.add('hidden'); }
 
+// ---------------- 存档导出 / 导入 / 重置 ----------------
+
+function collectSave() {
+  return {
+    best: state.best,
+    history: state.history,
+    collection: state.collection,
+    diff: state.pendingDiff,
+    skin: state.skin,
+    timbre: audio.timbre,
+  };
+}
+
+function exportSaveFile() {
+  try {
+    const text = exportSave(collectSave());
+    const blob = new Blob([text], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `拾径存档-${dailyKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch { /* 无下载能力时静默 */ }
+}
+
+/** 把校验过的存档写入运行时状态与 localStorage。 */
+function applySave(data) {
+  state.best = data.best;
+  state.history = data.history;
+  state.collection = data.collection;
+  state.pendingDiff = data.settings.diff;
+  state.skin = data.settings.skin;
+  audio.setTimbre(data.settings.timbre);
+  localStorage.setItem('rw-best', String(state.best));
+  localStorage.setItem('rw-history', serializeHistory(state.history));
+  localStorage.setItem('rw-collection', serializeCollection(state.collection));
+  localStorage.setItem('rw-diff', state.pendingDiff);
+  localStorage.setItem('rw-skin', state.skin);
+  localStorage.setItem('rw-timbre', data.settings.timbre);
+  if (SKINS[state.skin]) applySkinLook();
+  const skinBtn = $('skin-btn');
+  if (skinBtn) skinBtn.textContent = `◍ 皮肤：${(SKINS[state.skin] || SKINS.ink).name}`;
+  const timbreBtn = $('timbre-btn');
+  if (timbreBtn) timbreBtn.textContent = `♫ 音色：${(TIMBRES[data.settings.timbre] || TIMBRES.wood).name}`;
+  updateHud();
+}
+
+function importSaveFile(ev) {
+  const f = ev?.target?.files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const r = importSave(String(reader.result || ''));
+    if (!r.ok) {
+      alert(`导入失败：${r.error}`);
+      return;
+    }
+    applySave(r.data);
+    alert('存档已导入');
+  };
+  reader.readAsText(f);
+  ev.target.value = '';
+}
+
+function resetAll(skipConfirm = false) {
+  if (!skipConfirm && !confirm('确定清空本机所有进度（战绩 / 词集 / 每日挑战）吗？')) return false;
+  for (const [k, v] of Object.entries(resetValues())) localStorage.setItem(k, v);
+  state.best = 0;
+  state.history = [];
+  state.collection = [];
+  state.daily = null;
+  state.pendingDiff = 'normal';
+  updateHud();
+  return true;
+}
+
 // ---------------- 2D DOM ----------------
 
 function wire2D() {
   $('start-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(state.pendingDiff); };
+  $('daily-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { daily: dailyKey() }); };
+  $('save-export').onclick = () => { sfx.ui(); exportSaveFile(); };
+  $('save-import').onclick = () => { sfx.ui(); $('save-file').click(); };
+  $('save-file').onchange = (e) => importSaveFile(e);
+  $('save-reset').onclick = () => resetAll();
   $('coll-open').onclick = () => { openCollection(); };
   $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
   document.querySelectorAll('.diff-pick').forEach((b) => {
@@ -867,6 +988,15 @@ function updateHud() {
   $('hud-words2').textContent = String(state.collected.length);
   $('hud-score2').textContent = String(state.score);
   $('hud-best2').textContent = String(state.best);
+  // 每日挑战状态
+  const dk = dailyKey();
+  const ds = dailyStatus(state.daily, dk);
+  const el = $('daily-status');
+  if (el) {
+    el.textContent = ds.played
+      ? `今日已完成 · ${ds.score} 分${ds.win ? ' · 抵达 1024' : ''}`
+      : `今日未完成 · ${dailyDifficulty(dk)} 难度`;
+  }
 }
 
 function fillEnd() {
@@ -877,7 +1007,7 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${r.quote.flavor} 一言`;
-  $('end-stats').textContent = `${r.diffName} · ${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分 · 最佳 ${r.best}`;
+  $('end-stats').textContent = `${state.isDaily ? `每日挑战 ${state.dailyKey} · ` : ''}${r.diffName} · ${r.steps} 步 · 收录 ${r.words.length} 词 · ${r.score} 分 · 最佳 ${r.best}`;
   const prog = collectionProgress(state.collection, WORDS.length);
   $('end-history').textContent = [
     r.historyLine,
@@ -892,11 +1022,24 @@ function fillEnd() {
 
 // ---------------- 图场景 ----------------
 
+// 释放一棵子树里的全部 GPU/CPU 资源（几何、材质、材质贴图）。
+// 注意：标签是 Sprite，材质挂在 nodeGroup 的子对象上；只释放直接子对象会漏掉它们，
+// soak 测试曾因此每局泄漏 ~0.25MB（30 局 +108% 堆）。
+function disposeSubtree(root) {
+  root.traverse?.((o) => {
+    o.geometry?.dispose?.();
+    const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    for (const m of mats) {
+      m.map?.dispose?.();
+      m.dispose?.();
+    }
+  });
+}
+
 function clearGroup(g) {
-  while (g.children.length) {
-    const c = g.children.pop();
-    c.geometry?.dispose?.();
-    if (c.material) { (Array.isArray(c.material) ? c.material : [c.material]).forEach((m) => m.dispose?.()); }
+  for (const c of [...g.children]) {
+    disposeSubtree(c);
+    g.remove(c);
   }
 }
 
@@ -1190,6 +1333,7 @@ function showEndPanel(win) {
 
 function closeEndPanel() {
   if (endGroup) {
+    disposeSubtree(endGroup);
     scene.remove(endGroup);
     endGroup = null;
   }

@@ -78,6 +78,7 @@ node test\rw-unit.mjs          # 只跑纯逻辑单元测试（毫秒级）
 | `test/rw-unit.mjs` | 286 项断言：图生成不变量（200 种子×3 难度）/ 规则边界 / 数据完整性 / 合批几何（含三角形绕序）/ 快转 / 海报 / 菜单布局与命中 / 战绩统计 / 词集收藏与容错 / 空间音效 / 路径回放 / 跨难度成就 / 打包静态检查 |
 | `test/rw-e2e.mjs` | 69 项：页面无报错 → 开局 → 走子/收词 → 胜负结算 → 主干可达性 → 彩蛋 → 皮肤音色 → 海报导出 → 快转 → VR 菜单 → 战绩与难度记忆 → 词集与一览面板 → 路径回放/空间音效回落/跨难度成就 → 渲染结构 |
 | `test/rw-offline-e2e.mjs` | 单文件离线版 `file://` 直开可玩 + WebXR 接口探测 |
+| `test/rw-soak.mjs` | 长时稳定性：连续 60 局反复开局/结算，检测 JS 堆增长与帧率漂移（内存泄漏门禁） |
 | `test/rw-perf.mjs` | 6x CPU 限速：开局/重开耗时 + 帧率中位数 + 结构门禁（drawcall≤60、三角形≤60000、每节点顶点=165） |
 
 性能（6x CPU 限速 ≈ 骁龙 XR2）：开局约 0.45s、重开约 0.15s、帧率中位数 77~90fps；
@@ -99,11 +100,14 @@ public/
     js/stats.mjs     本地战绩与词集收藏（纯函数 + 容错解析）
     js/spatial.mjs   空间音效 PCM 合成（纯函数）
     js/replay.mjs    路径回放取样（纯函数）
+    js/daily.mjs     每日挑战日期/种子（纯函数）
+    js/save.mjs      存档导入导出（纯函数）
+    js/a11y.mjs      无障碍对比度审计（纯函数）
     js/main.mjs      场景 / 交互 / 渲染主程序
   vendor/        three.module.min.js（r160）+ VRButton.js（本地化，运行时零外网请求）
 apk/             壳工程（AndroidManifest / res / src；build/ 为产物，已 ignore）
 tools/           make-offline / make-icons / build-apk / test-all
-test/            chrome / rw-unit / rw-e2e / rw-offline-e2e / rw-perf
+test/            chrome / rw-unit / rw-e2e / rw-offline-e2e / rw-soak / rw-perf
 server.mjs       HTTPS 静态服务器（8543 / 8181）
 cert/            自签名证书（gitignore，由 make-cert.mjs 生成）
 ```

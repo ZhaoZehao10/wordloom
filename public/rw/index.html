@@ -14,7 +14,7 @@
 <div id="intro">
   <div class="card">
     <h1 id="title-h">拾径</h1>
-    <p class="sub">RANDOM WALK · 标记独属于你的思想路径 · Pico Neo3 WebXR</p>
+    <p class="sub">WORDLOOM · 在词与线的星座间行走 · Pico Neo3 WebXR</p>
     <div class="stats">
       <span>第 <b id="hud-round">1</b> 局</span><i>·</i>
       <span id="coll-open" style="cursor:pointer" title="查看词集">词集 <b id="hud-collection">0</b>/<b id="hud-collection-total">60</b></span><i>·</i>
@@ -30,6 +30,10 @@
     </ul>
     <div class="row">
       <button id="start-btn" class="primary">开始游走 ▸</button>
+      <button id="daily-btn" class="ghost">📅 每日挑战</button>
+    </div>
+    <div class="row small-row">
+      <span id="daily-status" class="mini-label">今日未完成</span>
     </div>
     <div class="row small-row">
       <span class="mini-label">难度</span>
@@ -42,8 +46,14 @@
       <button id="timbre-btn" class="ghost">♫ 音色：木鱼</button>
       <button id="mute-btn" class="ghost">🔊 音效</button>
     </div>
+    <div class="row small-row">
+      <span class="mini-label">存档</span>
+      <button id="save-export" class="ghost">导出</button>
+      <button id="save-import" class="ghost">导入</button>
+      <button id="save-reset" class="ghost">重置</button>
+      <input id="save-file" type="file" accept="application/json,.json" style="display:none">
+    </div>
     <p class="hint">桌面模式可预览玩法；头显内才有完整体验（ENTER VR 按钮）</p>
-    <p class="hint" style="margin-top:6px">本机还有另一款：<a href="/" style="color:#6cd0ff">🧩 3D 拼图 VR</a></p>
   </div>
 </div>
 
