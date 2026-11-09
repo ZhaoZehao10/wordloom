@@ -1,5 +1,9 @@
 # 拾径 · Wordloom
 
+[![Unit tests](https://github.com/zhaozehao10/wordloom/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/zhaozehao10/wordloom/actions/workflows/unit-tests.yml)
+[![E2E](https://github.com/zhaozehao10/wordloom/actions/workflows/e2e.yml/badge.svg)](https://github.com/zhaozehao10/wordloom/actions/workflows/e2e.yml)
+[![Deploy](https://github.com/zhaozehao10/wordloom/actions/workflows/pages.yml/badge.svg)](https://github.com/zhaozehao10/wordloom/actions/workflows/pages.yml)
+
 > 词与线织成一片荒原。每一步都是一次删减，走完就是一条只属于你的思想路径。
 
 在 VR 里沿词图行走的小游戏（**Pico Neo3 · WebXR**）：每步只能走到相邻的词节点，
