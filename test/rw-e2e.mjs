@@ -631,7 +631,34 @@ ok(packAch.pack === 'poetry', '当前为诗词词包');
 ok(packAch.ach.includes('诗词全集'), `集满诗词词包 → 解锁「诗词全集」（${packAch.ach.trim().replace(/\s+/g, ' ')}）`);
 ok(packAch.chart.ok && packAch.chart.litPixels > 100, `每日榜图表已绘制（${packAch.chart.litPixels} 个像素）`);
 
-console.log('\n[20] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[20] 词包主题 / 月视图 / 存档携带');
+const theme = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.debugSetPack('poetry');
+  const poetry = { skin: st.skin, timbre: window.__rw.audio.timbre };
+  window.__rw.debugSetPack('geek');
+  const geek = { skin: st.skin, timbre: window.__rw.audio.timbre };
+
+  const month = window.__rw.debugOpenMonth();
+  const cells = document.querySelectorAll('#month-grid .month-cell').length;
+  const headers = document.querySelectorAll('#month-grid .month-head').length;
+  const summary = document.getElementById('month-summary').textContent;
+  const closed = window.__rw.debugCloseMonth();
+
+  const saveText = window.__rw.exportSaveText();
+  const saved = JSON.parse(saveText).settings;
+  return { poetry, geek, month, cells, headers, summary, closed, savedPack: saved.pack, savedMove: saved.moveMode };
+})()`);
+ok(theme.poetry.skin === 'cinnabar' && theme.poetry.timbre === 'chime', '诗词词包自动套用朱砂/风铃主题', JSON.stringify(theme.poetry));
+ok(theme.geek.skin === 'celadon' && theme.geek.timbre === 'synth', '极客词包自动套用青瓷/电子主题', JSON.stringify(theme.geek));
+ok(theme.month.cells > 0 && theme.cells === theme.month.cells, `月视图网格格数正确（${theme.cells}）`);
+ok(theme.headers === 7, '月视图 7 个星期表头');
+ok(theme.summary.includes('本月'), `月视图摘要「${theme.summary}」`);
+ok(theme.closed, '月视图可关闭');
+ok(theme.savedPack === 'geek', '存档携带词包设置');
+ok(theme.savedMove === 'glide', '存档携带移动模式设置');
+
+console.log('\n[21] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

@@ -8,6 +8,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { resolveChrome, tempProfile } from './chrome.mjs';
+import { trendSlope } from '../public/rw/js/chart.mjs';
 
 const URL = 'https://localhost:8543/rw/index.html';
 const ROUNDS = Number(process.env.SOAK_ROUNDS || 60);
@@ -130,7 +131,15 @@ const result = await evalJs(`(async () => {
 
 console.log('soak 结果:', JSON.stringify(result));
 
+// 内存趋势：最小二乘斜率（MB/局），比单点前后差值更能反映泄漏
+const slope = trendSlope(result.heapSamples || []);
+console.log('内存趋势斜率:', slope.toFixed(3), 'MB/局');
+try { fs.writeFileSync('test/soak-trend.json', JSON.stringify({ ts: Date.now(), rounds: result.rounds, slope, samples: result.heapSamples || [] }, null, 2)); } catch {}
+
 const problems = [];
+if (result.heapSamples && result.heapSamples.length >= 3 && slope > 0.4) {
+  problems.push(`内存趋势斜率 ${slope.toFixed(3)}MB/局 > 0.4`);
+}
 if (result.heapGrowthMB > 40) problems.push(`堆增长 ${result.heapGrowthMB}MB > 40MB`);
 if (result.heapGrowthPct > 60) problems.push(`堆增长 ${result.heapGrowthPct}% > 60%`);
 if (FPS_MIN > 0 && result.fps < FPS_MIN) problems.push(`帧率 ${result.fps} < ${FPS_MIN}（SOAK_FPS_MIN 设置）`);

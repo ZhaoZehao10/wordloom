@@ -31,3 +31,6 @@ test/*.png
 
 # 临时诊断产物
 test/_*
+
+# soak 趋势记录（本地产物）
+test/soak-trend.json

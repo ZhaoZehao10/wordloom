@@ -13,7 +13,7 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 /** 把当前存档整理成可导出的 JSON 字符串（不含任何个人信息）。 */
 export function exportSave(save = {}) {
   const {
-    best = 0, history = [], collection = [], diff = 'normal', skin = 'ink', timbre = 'wood', moveMode = 'glide',
+    best = 0, history = [], collection = [], diff = 'normal', skin = 'ink', timbre = 'wood', moveMode = 'glide', pack = 'classic',
   } = save;
   const payload = {
     app: SAVE_APP,
@@ -29,6 +29,7 @@ export function exportSave(save = {}) {
       skin: isStr(skin) ? skin : 'ink',
       timbre: isStr(timbre) ? timbre : 'wood',
       moveMode: ['glide', 'teleport'].includes(moveMode) ? moveMode : 'glide',
+      pack: ['classic', 'poetry', 'geek', 'nature'].includes(pack) ? pack : 'classic',
     },
   };
   return JSON.stringify(payload);
@@ -61,7 +62,8 @@ export function importSave(raw) {
     skin: isStr(d.settings.skin) ? d.settings.skin : 'ink',
     timbre: isStr(d.settings.timbre) ? d.settings.timbre : 'wood',
     moveMode: ['glide', 'teleport'].includes(d.settings.moveMode) ? d.settings.moveMode : 'glide',
-  } : { diff: 'normal', skin: 'ink', timbre: 'wood', moveMode: 'glide' };
+    pack: ['classic', 'poetry', 'geek', 'nature'].includes(d.settings.pack) ? d.settings.pack : 'classic',
+  } : { diff: 'normal', skin: 'ink', timbre: 'wood', moveMode: 'glide', pack: 'classic' };
 
   return { ok: true, data: { best, history, collection, settings } };
 }

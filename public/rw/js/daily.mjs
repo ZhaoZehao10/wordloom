@@ -112,3 +112,46 @@ export function dailyBoard(history, todayKey, days = 7) {
   }
   return out;
 }
+// ---------------- 月视图（月历网格） ----------------
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/**
+ * 生成某月的月历网格（周日起始，7 列）。
+ * @returns {{year,month,days,startWeekday,weeks:(null|{day,key,played,score,win})[][]}}
+ */
+export function monthGrid(history, { year, month } = {}) {
+  const now = new Date();
+  const y = Number.isFinite(year) ? year : now.getFullYear();
+  const m = Number.isFinite(month) ? month : now.getMonth() + 1; // 1~12
+  const map = new Map((Array.isArray(history) ? history : []).map((d) => [d.key, d]));
+  const first = new Date(y, m - 1, 1);
+  const days = new Date(y, m, 0).getDate();
+  const startWeekday = first.getDay();
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= days; d++) {
+    const key = y + '-' + pad2(m) + '-' + pad2(d);
+    const rec = map.get(key);
+    cells.push({ day: d, key, played: !!rec, score: rec ? rec.score : 0, win: !!(rec && rec.win) });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return { year: y, month: m, days, startWeekday, weeks };
+}
+
+/** 月度摘要：挑战天数、胜局、总分、最佳。 */
+export function monthSummary(history, { year, month } = {}) {
+  const g = monthGrid(history, { year, month });
+  let played = 0, wins = 0, total = 0, best = 0;
+  for (const week of g.weeks) {
+    for (const cell of week) {
+      if (!cell || !cell.played) continue;
+      played++; total += cell.score;
+      if (cell.win) wins++;
+      best = Math.max(best, cell.score);
+    }
+  }
+  return { year: g.year, month: g.month, played, wins, total, best };
+}

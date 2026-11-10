@@ -24,10 +24,10 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
-import { barLayout, chartSummary } from '../public/rw/js/chart.mjs';
+import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -1096,6 +1096,15 @@ section('N. 每日榜图表 & 词包成就');
   eq(chartSummary([0, 10, 20]), { max: 20, total: 30, activeDays: 2 }, '图表摘要');
   eq(chartSummary([]), { max: 0, total: 0, activeDays: 0 }, '空摘要');
   eq(chartSummary([NaN, 5]), { max: 5, total: 5, activeDays: 1 }, '脏值过滤');
+
+  // 趋势斜率（soak 内存曲线）
+  eq(trendSlope([{ x: 0, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 3 }]), 1, '完美上升斜率 1');
+  eq(trendSlope([{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 2, y: 5 }]), 0, '水平线斜率 0');
+  ok(trendSlope([{ x: 0, y: 5 }, { x: 1, y: 4 }, { x: 2, y: 3 }]) < 0, '下降趋势为负');
+  eq(trendSlope([]), 0, '空点集斜率 0');
+  eq(trendSlope([{ x: 0, y: 1 }]), 0, '单点斜率 0');
+  eq(trendSlope([{ x: 1, y: 1 }, { x: 1, y: 2 }]), 0, 'x 无方差时斜率 0');
+  eq(trendSlope([{ x: 0, y: NaN }, { x: 1, y: 2 }]), 0, '脏点过滤后不足两点');
 }
 
 {
@@ -1114,6 +1123,65 @@ section('N. 每日榜图表 & 词包成就');
     packsCompleted: ['geek'], quote: { flavor: '极客', text: 't' },
   });
   ok(r.achievements.some((a) => a.name === '极客全集'), 'buildResult 传递词包完成列表');
+}
+
+// ═══════════════════ O. 月视图 & 词包主题 ═══════════════════
+
+section('O. 月视图 & 词包主题');
+
+{
+  const g = monthGrid([{ key: '2026-11-09', score: 50, win: true }], { year: 2026, month: 11 });
+  eq(g.year, 2026, '年份');
+  eq(g.month, 11, '月份');
+  eq(g.days, 30, '11 月 30 天');
+  eq(g.startWeekday, 0, '2026-11-01 是周日');
+  eq(g.weeks.length, 5, '5 周');
+  eq(g.weeks.flat().length, 35, '网格 35 格');
+  eq(g.weeks[0][0].day, 1, '第一格是 1 号');
+  eq(g.weeks[1][1].key, '2026-11-09', '9 号在第二周（索引 1）');
+  eq(g.weeks[1][1].score, 50, '9 号分数');
+  eq(g.weeks[1][1].win, true, '9 号胜利');
+  eq(g.weeks[4].filter(Boolean).length, 2, '最后一周只有 29/30 两天');
+
+  const leap = monthGrid([], { year: 2028, month: 2 });
+  eq(leap.days, 29, '2028 闰年 2 月 29 天');
+  const nonLeap = monthGrid([], { year: 2026, month: 2 });
+  eq(nonLeap.days, 28, '2026 平年 2 月 28 天');
+  const jan = monthGrid([], { year: 2026, month: 1 });
+  eq(jan.startWeekday, 4, '2026-01-01 是周四');
+  eq(jan.days, 31, '1 月 31 天');
+
+  // 默认参数：当前年月
+  const now = new Date();
+  const cur = monthGrid([]);
+  eq(cur.year, now.getFullYear(), '默认当前年');
+  eq(cur.month, now.getMonth() + 1, '默认当前月');
+
+  const sum = monthSummary([
+    { key: '2026-11-01', score: 10, win: false },
+    { key: '2026-11-09', score: 50, win: true },
+    { key: '2026-10-31', score: 99, win: true },  // 不在本月
+  ], { year: 2026, month: 11 });
+  eq(sum.played, 2, '本月挑战 2 天');
+  eq(sum.wins, 1, '本月胜 1 天');
+  eq(sum.total, 60, '本月总分');
+  eq(sum.best, 50, '本月最佳');
+  eq(monthSummary([], { year: 2026, month: 11 }).played, 0, '空月份');
+}
+
+{
+  // 每个词包都带合法主题
+  for (const k of PACK_KEYS) {
+    const p = WORD_PACKS[k];
+    ok(SKINS[p.skin] !== undefined, `词包 ${k} 皮肤存在（${p.skin}）`);
+    ok(TIMBRES[p.timbre] !== undefined, `词包 ${k} 音色存在（${p.timbre}）`);
+  }
+  // 主题映射符合设计
+  eq(WORD_PACKS.classic.skin, 'ink', '经典 → 墨');
+  eq(WORD_PACKS.poetry.skin, 'cinnabar', '诗词 → 朱砂');
+  eq(WORD_PACKS.geek.skin, 'celadon', '极客 → 青瓷');
+  eq(WORD_PACKS.poetry.timbre, 'chime', '诗词 → 风铃');
+  eq(WORD_PACKS.geek.timbre, 'synth', '极客 → 电子');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

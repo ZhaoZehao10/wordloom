@@ -20,7 +20,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -194,7 +194,7 @@ window.__rw = {
   // 词包 / 每日 7 日榜 / 舒适性
   packInfo: () => ({ pack: state.pack, packs: PACK_KEYS, words: WORD_PACKS[state.pack].words.length, total: TOTAL_WORDS }),
   packList: () => WORD_PACKS[state.pack].words.slice(),
-  debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); refreshPackUI(); return state.pack; },
+  debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); applyPackTheme(state.pack); refreshPackUI(); return state.pack; },
   dailyHistoryInfo: () => ({ history: state.dailyHistory.slice(), board: dailyBoard(state.dailyHistory, dailyKey(), 7) }),
   chartInfo: () => {
     const cv = $('daily-chart');
@@ -254,6 +254,8 @@ window.__rw = {
     persisted: parseCollection(localStorage.getItem('rw-collection') || '').length,
   }),
   debugOpenCollection: () => openCollection(),
+  debugOpenMonth: () => openMonth(),
+  debugCloseMonth: () => { closeMonth(); return month.classList.contains('hidden'); },
   debugCloseCollection: () => { closeCollection(); return $('coll').classList.contains('hidden'); },
 }; // 测试钩子
 
@@ -1028,6 +1030,8 @@ function collectSave() {
     diff: state.pendingDiff,
     skin: state.skin,
     timbre: audio.timbre,
+    moveMode: state.moveMode,
+    pack: state.pack,
   };
 }
 
@@ -1050,6 +1054,7 @@ function applySave(data) {
   state.best = data.best;
   state.history = data.history;
   state.collection = data.collection;
+  state.pack = normalizePack(data.settings.pack || 'classic');
   state.pendingDiff = data.settings.diff;
   state.skin = data.settings.skin;
   audio.setTimbre(data.settings.timbre);
@@ -1060,6 +1065,7 @@ function applySave(data) {
   localStorage.setItem('rw-skin', state.skin);
   localStorage.setItem('rw-timbre', data.settings.timbre);
   localStorage.setItem('rw-move', state.moveMode);
+  localStorage.setItem('rw-pack', state.pack);
   if (SKINS[state.skin]) applySkinLook();
   const skinBtn = $('skin-btn');
   if (skinBtn) skinBtn.textContent = `◍ 皮肤：${(SKINS[state.skin] || SKINS.ink).name}`;
@@ -1116,6 +1122,22 @@ function refreshLangUI() {
   updateHud();
 }
 
+/** 应用词包专属主题：切换词包时自动套用该包的皮肤与音色。 */
+function applyPackTheme(key) {
+  const pack = WORD_PACKS[normalizePack(key)];
+  if (!pack) return;
+  if (pack.skin && SKINS[pack.skin]) {
+    state.skin = pack.skin;
+    localStorage.setItem('rw-skin', pack.skin);
+    applySkinLook();
+  }
+  if (pack.timbre && TIMBRES[pack.timbre]) {
+    audio.setTimbre(pack.timbre);
+    localStorage.setItem('rw-timbre', pack.timbre);
+  }
+  refreshLangUI();
+}
+
 /** 词包选中态。 */
 function refreshPackUI() {
   document.querySelectorAll('.pack-pick').forEach((b) => {
@@ -1133,6 +1155,40 @@ function renderDailyBoard() {
     return `<span class="${cls}"><small>${r.short}</small>${r.played ? r.score : '·'}</span>`;
   }).join('');
 }
+
+/** 每日挑战月视图（月历网格）。 */
+function openMonth() {
+  const g = monthGrid(state.dailyHistory, {});
+  const sum = monthSummary(state.dailyHistory, {});
+  $('month-title').textContent = `${L('每日挑战')} · ${g.year}-${String(g.month).padStart(2, '0')}`;
+  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}`;
+  const grid = $('month-grid');
+  grid.innerHTML = '';
+  const zh = ['日', '一', '二', '三', '四', '五', '六'];
+  const en = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  for (let i = 0; i < 7; i++) {
+    const h = document.createElement('div');
+    h.className = 'month-head';
+    h.textContent = state.lang === 'en' ? en[i] : zh[i];
+    grid.appendChild(h);
+  }
+  for (const week of g.weeks) {
+    for (const cell of week) {
+      const el = document.createElement('div');
+      if (!cell) { el.className = 'month-cell empty'; }
+      else {
+        el.className = 'month-cell' + (cell.played ? ' played' : '') + (cell.win ? ' win' : '');
+        el.innerHTML = '<span class="d">' + cell.day + '</span><span class="s">' + (cell.played ? cell.score : '·') + '</span>';
+      }
+      grid.appendChild(el);
+    }
+  }
+  $('month').classList.remove('hidden');
+  sfx.ui();
+  return { weeks: g.weeks.length, cells: g.weeks.length * 7, days: g.days };
+}
+
+function closeMonth() { $('month').classList.add('hidden'); }
 
 /** 每日 7 日榜柱状图（canvas 2D）。 */
 function drawDailyChart() {
@@ -1173,6 +1229,9 @@ function wire2D() {
   $('save-reset').onclick = () => resetAll();
   $('coll-open').onclick = () => { openCollection(); };
   $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
+  $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
+  const chartEl = $('daily-chart');
+  if (chartEl) chartEl.onclick = () => openMonth();
   document.querySelectorAll('.diff-pick').forEach((b) => {
     b.onclick = () => { audio.unlock(); sfx.ui(); startRound(b.dataset.diff); };
   });
@@ -1205,6 +1264,7 @@ function wire2D() {
     b.onclick = () => {
       state.pack = normalizePack(b.dataset.pack);
       localStorage.setItem('rw-pack', state.pack);
+      applyPackTheme(state.pack);
       refreshPackUI();
       sfx.ui();
     };

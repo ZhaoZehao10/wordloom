@@ -115,9 +115,9 @@ const NATURE_EXTRA = [
 ];
 
 export const WORD_PACKS = {
-  classic: { key: 'classic', name: '经典', desc: '词与线织成的荒原', words: WORDS },
+  classic: { key: 'classic', name: '经典', desc: '词与线织成的荒原', words: WORDS, skin: 'ink', timbre: 'wood' },
   poetry: {
-    key: 'poetry', name: '诗词', desc: '落花流水，长亭故人',
+    key: 'poetry', name: '诗词', desc: '落花流水，长亭故人', skin: 'cinnabar', timbre: 'chime',
     words: [...new Set([
       '诗', '梦', '山海', '灯火', '银河', '雨', '潮汐', '麦浪', '风筝', '萤火',
       '蝉鸣', '晨昏', '子夜', '岛屿', '苔藓', '蝴蝶', '果壳', '深渊', '群星', '缪斯',
@@ -125,7 +125,7 @@ export const WORD_PACKS = {
     ])],
   },
   geek: {
-    key: 'geek', name: '极客', desc: '字节与指针的夜航',
+    key: 'geek', name: '极客', desc: '字节与指针的夜航', skin: 'celadon', timbre: 'synth',
     words: [...new Set([
       '字节', '递归', '代码', '缓存', '指针', '变量', '逻辑', '拓扑', '熵', '量子',
       '奇点', '硅', '蒸汽', '冗余', '断点', '浮点', '回车', '白噪', '镜像', '磁场',
@@ -133,7 +133,7 @@ export const WORD_PACKS = {
     ])],
   },
   nature: {
-    key: 'nature', name: '自然', desc: '野草、候鸟与溪流',
+    key: 'nature', name: '自然', desc: '野草、候鸟与溪流', skin: 'ink', timbre: 'chime',
     words: [...new Set([
       '光', '星尘', '野草', '远方', '泡沫', '黎明', '潮汐', '石头', '候鸟', '麦田',
       '冰河', '岛屿', '苔藓', '蝴蝶', '萤火', '蝉鸣', '回声', '银河', '雨',

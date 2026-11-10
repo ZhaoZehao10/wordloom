@@ -36,3 +36,19 @@ export function chartSummary(values) {
     activeDays: vals.filter((v) => v > 0).length,
   };
 }
+
+/**
+ * 线性回归斜率（最小二乘）：用于 soak 的堆增长趋势。
+ * @param {{x:number,y:number}[]} points
+ * @returns {number} 每单位 x 的 y 变化量；点数不足或 x 无方差时返回 0
+ */
+export function trendSlope(points) {
+  const pts = Array.isArray(points) ? points.filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)) : [];
+  const n = pts.length;
+  if (n < 2) return 0;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (const p of pts) { sx += p.x; sy += p.y; sxx += p.x * p.x; sxy += p.x * p.y; }
+  const den = n * sxx - sx * sx;
+  if (Math.abs(den) < 1e-9) return 0;
+  return (n * sxy - sx * sy) / den;
+}
