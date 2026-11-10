@@ -27,6 +27,7 @@ import {
   parseDailyHistory, appendDailyHistory, dailyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
+import { barLayout, chartSummary } from '../public/rw/js/chart.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -799,7 +800,7 @@ section('J. 单文件打包静态检查');
   const BUNDLED = [
     'data.mjs', 'i18n.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
     'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs',
-    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'graph.mjs', 'audio.mjs',
+    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'chart.mjs', 'graph.mjs', 'audio.mjs',
   ];
   const decls = new Map();   // 名字 → 出现的文件
   const dupes = [];
@@ -1065,6 +1066,54 @@ section('M. 舒适性 & 音量');
   eq(seatedOffset(2.5), -0.6, '过高眼高钳制 -0.6');
   eq(seatedOffset(0), 0, '零值安全');
   eq(seatedOffset('x'), 0, '非法输入安全');
+}
+
+// ═══════════════════ N. 每日榜图表 / 词包成就 ═══════════════════
+
+section('N. 每日榜图表 & 词包成就');
+
+{
+  eq(barLayout([]).length, 0, '空数据无柱子');
+  const zeros = barLayout([0, 0, 0, 0, 0, 0, 0], { width: 280, height: 48, gap: 6, minBar: 2 });
+  eq(zeros.length, 7, '7 天 7 根柱');
+  ok(zeros.every((b) => b.h === 2), '全 0 时仅保留最小高度');
+  ok(zeros.every((b) => b.ratio === 0), '全 0 比例为 0');
+
+  const bars = barLayout([10, 0, 20], { width: 300, height: 50, gap: 10 });
+  eq(bars.length, 3, '三根柱');
+  eq(bars[2].ratio, 1, '最高分比例 1');
+  eq(bars[2].h, 50, '最高分占满高度');
+  eq(bars[0].h, 25, '一半分数一半高度');
+  ok(bars[0].x < bars[1].x && bars[1].x < bars[2].x, '柱子从左到右排列');
+  ok(bars.every((b) => b.h >= 2 && b.w >= 1), '每根柱都有可见尺寸');
+  ok(bars.every((b) => b.y + b.h === 50), 'y + h = 图高（底部对齐）');
+
+  const dirty = barLayout([NaN, -5, 'x', 8]);
+  eq(dirty[0].ratio, 0, 'NaN 归零');
+  eq(dirty[1].ratio, 0, '负值归零');
+  eq(dirty[3].ratio, 1, '最大值仍为 1');
+
+  eq(chartSummary([0, 10, 20]), { max: 20, total: 30, activeDays: 2 }, '图表摘要');
+  eq(chartSummary([]), { max: 0, total: 0, activeDays: 0 }, '空摘要');
+  eq(chartSummary([NaN, 5]), { max: 5, total: 5, activeDays: 1 }, '脏值过滤');
+}
+
+{
+  const names = (list) => list.map((a) => a.name);
+  const base = { win: false, stepsLeft: 0, wordCount: 2, unlimited: false };
+  eq(names(achievementsFor({ ...base, packsCompleted: ['poetry'] })), ['诗词全集'], '诗词词包集满 → 诗词全集');
+  eq(names(achievementsFor({ ...base, packsCompleted: ['classic', 'geek'] })), ['经典全集', '极客全集'], '多词包按固定顺序');
+  eq(names(achievementsFor({ ...base, packsCompleted: [] })).length, 0, '未集满无词包成就');
+  eq(names(achievementsFor({ ...base, packsCompleted: ['nature'] })).length, 1, '自然全集');
+  // 与其它成就叠加
+  const combo = names(achievementsFor({ win: true, stepsLeft: 6, wordCount: 3, collectionSize: 60, lexiconTotal: 120, packsCompleted: ['classic'] }));
+  ok(combo.includes('抵达 1024') && combo.includes('词集三十') && combo.includes('经典全集'), '词包成就可与单局/元进度叠加', combo.join(','));
+
+  const r = buildResult({
+    win: false, visitedWords: ['光'], collected: ['光'], steps: 1, stepsLeft: 0,
+    packsCompleted: ['geek'], quote: { flavor: '极客', text: 't' },
+  });
+  ok(r.achievements.some((a) => a.name === '极客全集'), 'buildResult 传递词包完成列表');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

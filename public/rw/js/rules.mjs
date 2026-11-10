@@ -33,7 +33,7 @@ export function finalScore({ win, stepsLeft, wordCount, unlimited = false }) {
  */
 export function achievementsFor({
   win, stepsLeft, wordCount, unlimited = false,
-  collectionSize = 0, diffsWon = [], lexiconTotal = 0,
+  collectionSize = 0, diffsWon = [], lexiconTotal = 0, packsCompleted = [],
 }) {
   const out = [];
   if (win) out.push(ACHIEVEMENTS.reach);
@@ -47,6 +47,18 @@ export function achievementsFor({
     out.push(ACHIEVEMENTS.allDiffs);
   }
   if (lexiconTotal > 0 && collectionSize >= lexiconTotal) out.push(ACHIEVEMENTS.lexicon);
+  // —— 词包专属成就（固定顺序，便于测试与展示稳定）——
+  const PACK_ACHIEVEMENTS = [
+    ['classic', ACHIEVEMENTS.packClassic],
+    ['poetry', ACHIEVEMENTS.packPoetry],
+    ['geek', ACHIEVEMENTS.packGeek],
+    ['nature', ACHIEVEMENTS.packNature],
+  ];
+  if (Array.isArray(packsCompleted)) {
+    for (const [key, ach] of PACK_ACHIEVEMENTS) {
+      if (packsCompleted.includes(key)) out.push(ach);
+    }
+  }
   return out;
 }
 
@@ -133,6 +145,7 @@ export function buildResult({
   collectionSize = 0,     // 跨局词集
   diffsWon = [],          // 已获胜难度
   lexiconTotal = 0,       // 词库总量
+  packsCompleted = [],    // 已集满的词包 key
   rand = Math.random,
 }) {
   const { poem, words } = pathPoem(visitedWords);
@@ -145,7 +158,7 @@ export function buildResult({
     steps,
     quote: quote || pickQuote(rand),
     achievements: achievementsFor({
-      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal,
+      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted,
     }),
     bonus: finalScore({ win, stepsLeft, wordCount, unlimited }),
   };

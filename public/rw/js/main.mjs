@@ -26,6 +26,7 @@ import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
 import { normalizeMoveMode, nextMoveMode } from './rules.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from './comfort.mjs';
+import { barLayout } from './chart.mjs';
 
 // ---------------- 常量 ----------------
 
@@ -195,6 +196,14 @@ window.__rw = {
   packList: () => WORD_PACKS[state.pack].words.slice(),
   debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); refreshPackUI(); return state.pack; },
   dailyHistoryInfo: () => ({ history: state.dailyHistory.slice(), board: dailyBoard(state.dailyHistory, dailyKey(), 7) }),
+  chartInfo: () => {
+    const cv = $('daily-chart');
+    if (!cv) return { ok: false };
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let lit = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) lit++;
+    return { ok: true, width: cv.width, height: cv.height, litPixels: lit };
+  },
   volumeInfo: () => ({ volume: state.volume, muted: audio.muted, percent: volumeToPercent(state.volume) }),
   debugSetVolume: (v) => { state.volume = clampVolume(v); audio.setVolume(state.volume); localStorage.setItem('rw-volume', String(state.volume)); return state.volume; },
   vignetteInfo: () => ({ enabled: state.vignette, opacity: vignetteMesh ? +vignetteMesh.material.opacity.toFixed(3) : -1 }),
@@ -673,6 +682,7 @@ function resultData(win) {
     collectionSize: state.collection.length,
     diffsWon: diffsWon(state.history),
     lexiconTotal: TOTAL_WORDS,
+    packsCompleted: PACK_KEYS.filter((k) => WORD_PACKS[k].words.every((w) => state.collection.includes(w))),
   });
   return {
     win,
@@ -1124,6 +1134,23 @@ function renderDailyBoard() {
   }).join('');
 }
 
+/** 每日 7 日榜柱状图（canvas 2D）。 */
+function drawDailyChart() {
+  const cv = $('daily-chart');
+  if (!cv) return 0;
+  const c = cv.getContext('2d');
+  const rows = dailyBoard(state.dailyHistory, dailyKey(), 7).slice().reverse(); // 左旧右新
+  const values = rows.map((r) => (r.played ? r.score : 0));
+  const bars = barLayout(values, { width: cv.width - 8, height: cv.height - 14 });
+  c.clearRect(0, 0, cv.width, cv.height);
+  rows.forEach((r, i) => {
+    const b = bars[i];
+    c.fillStyle = r.win ? '#ffcf4d' : r.played ? '#6cd0ff' : 'rgba(140,165,255,0.22)';
+    c.fillRect(4 + b.x, cv.height - 5 - b.h, b.w, b.h);
+  });
+  return bars.length;
+}
+
 /** 座姿标定：按当前眼高计算世界抬高量并应用。 */
 function calibrateSeated() {
   const y = camera.getWorldPosition(new THREE.Vector3()).y;
@@ -1287,6 +1314,7 @@ function updateHud() {
       : `${L('今日未完成')} · ${diffName} ${L('难度')}`;
   }
   renderDailyBoard();
+  drawDailyChart();
 }
 
 /** 结算页历史摘要（按当前语言生成）。 */

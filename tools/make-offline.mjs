@@ -58,6 +58,7 @@ const gameSrc = [
   ['save', 'rw/js/save.mjs'],         // 存档导入导出，纯函数
   ['tutorial', 'rw/js/tutorial.mjs'], // 新手引导状态，纯函数
   ['comfort', 'rw/js/comfort.mjs'],   // 舒适性/音量/座姿，纯函数
+  ['chart', 'rw/js/chart.mjs'],       // 每日榜柱状图几何，纯函数
   ['graph', 'rw/js/graph.mjs'],
   ['audio', 'rw/js/audio.mjs'],       // 依赖 data
   ['main', 'rw/js/main.mjs'],         // 依赖以上全部

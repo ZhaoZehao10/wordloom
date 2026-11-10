@@ -84,6 +84,10 @@ export const ACHIEVEMENTS = {
   collector: { icon: '📚', name: '词集三十' }, // 跨局词集 ≥ 30 词
   allDiffs:  { icon: '🧭', name: '三途皆涉' }, // 三种难度各胜一局
   lexicon:   { icon: '🌌', name: '词汇全图' }, // 词集集满
+  packClassic: { icon: '🗂', name: '经典全集' }, // 经典词包集满
+  packPoetry:  { icon: '🌸', name: '诗词全集' }, // 诗词词包集满
+  packGeek:    { icon: '💾', name: '极客全集' }, // 极客词包集满
+  packNature:  { icon: '🌿', name: '自然全集' }, // 自然词包集满
 };
 
 export const DIFFICULTIES = [

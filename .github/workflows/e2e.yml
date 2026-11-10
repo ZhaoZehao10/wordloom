@@ -35,6 +35,9 @@ jobs:
       - name: 离线单文件端到端
         run: node test/rw-offline-e2e.mjs
 
+      - name: 视觉回归（Linux 基线）
+        run: node test/rw-visual.mjs
+
       - name: 稳定性 soak（20 局）
         env:
           SOAK_ROUNDS: '20'

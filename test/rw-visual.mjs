@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { resolveChrome, tempProfile } from './chrome.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BASE_DIR = path.join(ROOT, 'test', 'baselines');
+// 按平台分基线：不同操作系统的字体/渲染存在差异，各自维护一套
+const BASE_DIR = path.join(ROOT, 'test', 'baselines', process.platform);
 const URL = 'https://localhost:8543/rw/index.html';
 const UPDATE = process.argv.includes('--update');
 const THRESHOLD_PCT = 2;

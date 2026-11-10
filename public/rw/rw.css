@@ -222,3 +222,6 @@ button.ghost:hover { color: var(--text); }
 .daily-chip small { display: block; opacity: 0.75; font-size: 10px; }
 
 .volume-range { width: 110px; accent-color: #6cd0ff; vertical-align: middle; }
+
+.daily-chart-wrap { display: flex; justify-content: center; margin: 2px 0 8px; }
+#daily-chart { opacity: 0.95; }

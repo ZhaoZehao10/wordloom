@@ -1,0 +1,42 @@
+name: Visual baseline (Linux)
+
+# 手动触发：在 Linux 环境生成视觉回归基线，作为 artifact 上传，由维护者合入仓库。
+# 视觉回归对字体与渲染敏感，因此基线按平台分开保存（test/baselines/<platform>/）。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 生成本地 HTTPS 证书
+        run: node make-cert.mjs
+
+      - name: 启动静态服务器
+        run: |
+          node server.mjs > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -ks https://localhost:8543/rw/index.html -o /dev/null; then break; fi
+            sleep 1
+          done
+
+      - name: 构建单文件离线版
+        run: node tools/make-offline.mjs
+
+      - name: 生成 Linux 视觉基线
+        run: node test/rw-visual.mjs --update
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-baselines
+          path: test/baselines/linux
+          if-no-files-found: error

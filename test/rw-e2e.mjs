@@ -612,7 +612,26 @@ ok(extras.during.enabled === true && extras.during.opacity > 0, `滑翔中出现
 ok(extras.seated === 0.4 && extras.seatedInfo.rigY === 0.4, `座姿 1.2m → 世界抬高 0.4m（rigY=${extras.seatedInfo.rigY}）`);
 ok(extras.seatedReset.offset === 0, '回到站立眼高后偏移归零');
 
-console.log('\n[19] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[19] 词包成就 & 每日榜图表');
+const packAch = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.debugSetPack('poetry');
+  st.collection = window.__rw.packList().slice();   // 诗词包全集
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 220));
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  return {
+    ach: document.getElementById('end-ach').textContent,
+    chart: window.__rw.chartInfo(),
+    pack: window.__rw.packInfo().pack,
+  };
+})()`);
+ok(packAch.pack === 'poetry', '当前为诗词词包');
+ok(packAch.ach.includes('诗词全集'), `集满诗词词包 → 解锁「诗词全集」（${packAch.ach.trim().replace(/\s+/g, ' ')}）`);
+ok(packAch.chart.ok && packAch.chart.litPixels > 100, `每日榜图表已绘制（${packAch.chart.litPixels} 个像素）`);
+
+console.log('\n[20] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
