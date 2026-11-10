@@ -20,7 +20,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -196,6 +196,8 @@ window.__rw = {
   packList: () => WORD_PACKS[state.pack].words.slice(),
   debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); applyPackTheme(state.pack); refreshPackUI(); return state.pack; },
   dailyHistoryInfo: () => ({ history: state.dailyHistory.slice(), board: dailyBoard(state.dailyHistory, dailyKey(), 7) }),
+  debugSetDailyHistory: (rows) => { state.dailyHistory = parseDailyHistory(JSON.stringify(rows || [])); updateHud(); return state.dailyHistory.length; },
+  debugRefreshHud: () => { updateHud(); return true; },
   chartInfo: () => {
     const cv = $('daily-chart');
     if (!cv) return { ok: false };
@@ -685,6 +687,7 @@ function resultData(win) {
     diffsWon: diffsWon(state.history),
     lexiconTotal: TOTAL_WORDS,
     packsCompleted: PACK_KEYS.filter((k) => WORD_PACKS[k].words.every((w) => state.collection.includes(w))),
+    streakBest: dailyStreak(state.dailyHistory, dailyKey()).best,
   });
   return {
     win,
@@ -1369,9 +1372,11 @@ function updateHud() {
   const el = $('daily-status');
   if (el) {
     const diffName = L((DIFFICULTIES.find((d) => d.key === dailyDifficulty(dk)) || DIFFICULTIES[1]).name);
-    el.textContent = ds.played
+    const streak = dailyStreak(state.dailyHistory, dk);
+    const streakText = streak.current > 0 ? ` · ${L('连续')} ${streak.current} ${L('天')}` : '';
+    el.textContent = (ds.played
       ? `${L('今日已完成')} · ${ds.score} ${L('分')}${ds.win ? ` · ${L('抵达 1024')}` : ''}`
-      : `${L('今日未完成')} · ${diffName} ${L('难度')}`;
+      : `${L('今日未完成')} · ${diffName} ${L('难度')}`) + streakText;
   }
   renderDailyBoard();
   drawDailyChart();

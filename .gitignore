@@ -34,3 +34,5 @@ test/_*
 
 # soak 趋势记录（本地产物）
 test/soak-trend.json
+
+test/perf-history.json

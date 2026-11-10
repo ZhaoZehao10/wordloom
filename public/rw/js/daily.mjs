@@ -155,3 +155,35 @@ export function monthSummary(history, { year, month } = {}) {
   }
   return { year: g.year, month: g.month, played, wins, total, best };
 }
+// ---------------- 连续打卡（streak） ----------------
+
+const DAY_MS = 86400000;
+
+/** 日期键加减天数（本地时间）。 */
+export function addDays(key, n) {
+  const d = new Date(`${key}T00:00:00`);
+  const x = new Date(d.getTime() + n * DAY_MS);
+  const p = (v) => String(v).padStart(2, '0');
+  return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
+}
+
+/**
+ * 连续打卡统计。
+ * current：从今天（若今天未打则从昨天）往前连续有记录的天数。
+ * best：历史最长连续段。
+ */
+export function dailyStreak(history, todayKey) {
+  const set = new Set((Array.isArray(history) ? history : []).map((d) => d && d.key).filter(Boolean));
+  let cursor = set.has(todayKey) ? todayKey : addDays(todayKey, -1);
+  let current = 0;
+  while (set.has(cursor)) { current++; cursor = addDays(cursor, -1); }
+
+  const keys = [...set].sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of keys) {
+    run = prev && addDays(prev, 1) === k ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return { current, best: Math.max(best, current) };
+}

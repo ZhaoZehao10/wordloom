@@ -600,7 +600,7 @@ const extras = await evalJs(`(async () => {
   const seatedReset = window.__rw.seatedInfo();
   return { pack0, pack1, allFromPack, graphWords: graphWords.length, dh, boardDom, vol, volSaved, off, during, seated, seatedInfo, seatedReset };
 })()`);
-ok(extras.pack0.packs.length === 4 && extras.pack0.words === 60, `默认词包经典（${extras.pack0.words} 词）`);
+ok(extras.pack0.packs.length === 5 && extras.pack0.words === 60, `默认词包经典（${extras.pack0.words} 词，共 5 个词包）`);
 ok(extras.pack1.pack === 'poetry' && extras.pack1.words === 40, '切换到诗词词包（40 词）');
 ok(extras.allFromPack && extras.graphWords > 5, `本局词节点全部来自所选词包（${extras.graphWords} 个）`);
 ok(extras.dh.board.length === 7, '每日榜固定 7 格');
@@ -658,7 +658,32 @@ ok(theme.closed, '月视图可关闭');
 ok(theme.savedPack === 'geek', '存档携带词包设置');
 ok(theme.savedMove === 'glide', '存档携带移动模式设置');
 
-console.log('\n[21] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[21] 混合词包 & 连续打卡');
+const streak = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.debugSetPack('mix');
+  const mix = window.__rw.packInfo();
+  // 造 7 天连续记录（含今天）
+  const today = window.__rw.dailyInfo().key;
+  const rows = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(new Date(today + 'T00:00:00').getTime() - i * 86400000);
+    const p = (n) => String(n).padStart(2, '0');
+    rows.push({ key: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), score: 10 + i, win: i === 6 });
+  }
+  window.__rw.debugSetDailyHistory(rows);
+  const statusText = document.getElementById('daily-status').textContent;
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 220));
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  return { mix, statusText, ach: document.getElementById('end-ach').textContent };
+})()`);
+ok(streak.mix.pack === 'mix' && streak.mix.words === 120, `混合词包可用（${streak.mix.words} 词）`);
+ok(streak.statusText.includes('连续 7'), `每日状态显示连续天数「${streak.statusText}」`);
+ok(streak.ach.includes('七日不辍'), `连续 7 天解锁「七日不辍」（${streak.ach.trim().replace(/\s+/g, ' ')}）`);
+
+console.log('\n[22] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

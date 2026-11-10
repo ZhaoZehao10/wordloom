@@ -24,7 +24,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -992,7 +992,7 @@ section('L. 新手引导 / 移动模式 / i18n');
 section('M. 主题词包');
 
 {
-  eq(PACK_KEYS.join(','), 'classic,poetry,geek,nature', '四个主题词包');
+  eq(PACK_KEYS.join(','), 'classic,poetry,geek,nature,mix', '五个词包（含混合）');
   for (const k of PACK_KEYS) {
     const p = WORD_PACKS[k];
     ok(p.name && p.words.length >= 39, `词包 ${k} 至少 39 词（${p.words.length}）`);
@@ -1000,6 +1000,9 @@ section('M. 主题词包');
     ok(p.words.every((w) => typeof w === 'string' && w.length >= 1 && w.length <= 4), `词包 ${k} 词长合规`);
   }
   eq(WORD_PACKS.classic.words.length, WORDS.length, '经典词包 = 原词库');
+  eq(WORD_PACKS.mix.words.length, TOTAL_WORDS, '混合词包 = 全部词库');
+  eq(WORD_PACKS.mix.words.length, 120, '混合词包 120 词');
+  eq(normalizePack('mix'), 'mix', '混合词包可选中');
   ok(TOTAL_WORDS > WORDS.length, `总词数 ${TOTAL_WORDS} > 单包（跨包并集）`);
   eq(normalizePack('poetry'), 'poetry', '合法词包保留');
   eq(normalizePack('nope'), 'classic', '非法词包回落经典');
@@ -1182,6 +1185,39 @@ section('O. 月视图 & 词包主题');
   eq(WORD_PACKS.geek.skin, 'celadon', '极客 → 青瓷');
   eq(WORD_PACKS.poetry.timbre, 'chime', '诗词 → 风铃');
   eq(WORD_PACKS.geek.timbre, 'synth', '极客 → 电子');
+  eq(WORD_PACKS.mix.skin, 'ink', '混合 → 墨');
+  eq(WORD_PACKS.mix.timbre, 'wood', '混合 → 木鱼');
+}
+
+// ═══════════════════ P. 连续打卡 ═══════════════════
+
+section('P. 连续打卡');
+
+{
+  eq(addDays('2026-03-01', -1), '2026-02-28', '跨月减一天');
+  eq(addDays('2028-03-01', -1), '2028-02-29', '闰年 2 月');
+  eq(addDays('2026-12-31', 1), '2027-01-01', '跨年加一天');
+
+  const h = ['2026-11-09', '2026-11-10', '2026-11-11'].map((key) => ({ key }));
+  const s = dailyStreak(h, '2026-11-11');
+  eq(s.current, 3, '连续 3 天');
+  eq(s.best, 3, '最佳连续 3 天');
+
+  const gap = dailyStreak([{ key: '2026-11-08' }, { key: '2026-11-11' }], '2026-11-11');
+  eq(gap.current, 1, '断档后当前连续 1 天');
+  eq(gap.best, 1, '断档后最佳 1 天');
+
+  const yesterday = dailyStreak([{ key: '2026-11-09' }, { key: '2026-11-10' }], '2026-11-11');
+  eq(yesterday.current, 2, '今天未打时从昨天往前算');
+
+  eq(dailyStreak([], '2026-11-11'), { current: 0, best: 0 }, '空历史');
+  eq(dailyStreak(null, '2026-11-11').current, 0, 'null 安全');
+
+  // streak 成就
+  const names = (l) => l.map((a) => a.name);
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 7 })), ['七日不辍'], '连续 7 天 → 七日不辍');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 6 })), [], '连续 6 天不达成（边界）');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 30 })), ['七日不辍'], '更长连续仍只解锁一次');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

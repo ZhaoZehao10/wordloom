@@ -64,6 +64,8 @@ export const EN = {
   '诗词': 'Poetry',
   '极客': 'Geek',
   '自然': 'Nature',
+  '混合': 'Mixed',
+  '连续': 'Streak',
   '音量': 'Volume',
   '防晕遮罩': 'Comfort vignette',
   '开': 'On',

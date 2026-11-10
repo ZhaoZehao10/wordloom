@@ -1,6 +1,7 @@
 // 拾径 Wordloom — 浏览器性能实测（6x CPU 限速 ≈ Snapdragon XR2）
 // 指标：开局建图+建场景耗时、滑翔中帧率、走路事件循环延迟。
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import { resolveChrome, tempProfile } from './chrome.mjs';
 
 const CHROME = resolveChrome();
@@ -47,20 +48,20 @@ const perf = await evalJs(`(async () => {
   window.__rw.startRound('hard');
   const buildMs = performance.now() - t0;
   await new Promise((r) => setTimeout(r, 400));
-  // 2) 帧率采样：3 段各 1.2s 取中位数（headless rAF 抖动大，单段会误报）
+  // 2) 帧率采样：5 段各 1s 取中位数（headless rAF 抖动大，单段会误报）
   const fpsList = [];
-  for (let s = 0; s < 3; s++) {
+  for (let s = 0; s < 5; s++) {
     let frames = 0;
     const t1 = performance.now();
     await new Promise((resolve) => {
-      const tick = () => { frames++; if (performance.now() - t1 < 1200) requestAnimationFrame(tick); else resolve(); };
+      const tick = () => { frames++; if (performance.now() - t1 < 1000) requestAnimationFrame(tick); else resolve(); };
       requestAnimationFrame(tick);
     });
     fpsList.push(frames / ((performance.now() - t1) / 1000));
     await new Promise((r) => setTimeout(r, 120));
   }
   fpsList.sort((a, b) => a - b);
-  const fps = fpsList[1];
+  const fps = fpsList[Math.floor(fpsList.length / 2)];
   // 3) 重建 10 局（换图成本）
   const t2 = performance.now();
   for (let i = 0; i < 10; i++) window.__rw.startRound('normal');
@@ -77,6 +78,19 @@ const perf = await evalJs(`(async () => {
   };
 })()`);
 console.log('拾径 Wordloom 性能（6x CPU 限速 ≈ 移动端）:', JSON.stringify(perf));
+
+// 性能历史曲线：保留最近 30 次结果，便于观察长期漂移
+const histPath = 'test/perf-history.json';
+let hist = [];
+try { hist = JSON.parse(fs.readFileSync(histPath, 'utf8')); } catch { hist = []; }
+if (!Array.isArray(hist)) hist = [];
+const prev = hist.length ? hist[hist.length - 1] : null;
+if (prev) {
+  const dFps = (perf.fps - prev.fps).toFixed(1);
+  console.log(`对比上次（${new Date(prev.ts).toISOString().slice(0, 16)}）：fps ${prev.fps}→${perf.fps}（${dFps >= 0 ? '+' : ''}${dFps}）· drawcall ${prev.drawCalls}→${perf.drawCalls}`);
+}
+hist.push({ ts: Date.now(), ...perf });
+try { fs.writeFileSync(histPath, JSON.stringify(hist.slice(-30), null, 2)); } catch { /* 只读环境忽略 */ }
 
 // 通过标准（双门禁）：
 //   结构指标：drawcall ≤ 60、三角形 ≤ 60000、单球顶点数 = 每节点 165（14×10 细分）

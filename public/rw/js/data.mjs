@@ -88,6 +88,7 @@ export const ACHIEVEMENTS = {
   packPoetry:  { icon: '🌸', name: '诗词全集' }, // 诗词词包集满
   packGeek:    { icon: '💾', name: '极客全集' }, // 极客词包集满
   packNature:  { icon: '🌿', name: '自然全集' }, // 自然词包集满
+  streak7:     { icon: '🔥', name: '七日不辍' }, // 每日挑战连续 7 天
 };
 
 export const DIFFICULTIES = [
@@ -142,11 +143,16 @@ export const WORD_PACKS = {
   },
 };
 
-export const PACK_KEYS = Object.keys(WORD_PACKS);
+export const BASE_PACK_KEYS = ['classic', 'poetry', 'geek', 'nature'];
 
-/** 所有词包的并集：词集收藏的口径（跨词包累计）。 */
-export const ALL_WORDS = [...new Set(PACK_KEYS.flatMap((k) => WORD_PACKS[k].words))];
+/** 所有基础词包的并集：词集收藏的口径（跨词包累计，共 120 词）。 */
+export const ALL_WORDS = [...new Set(BASE_PACK_KEYS.flatMap((k) => WORD_PACKS[k].words))];
 export const TOTAL_WORDS = ALL_WORDS.length;
+
+// 混合词包：使用全部词库，随机混合各主题
+WORD_PACKS.mix = { key: 'mix', name: '混合', desc: '全部主题随机混合', words: ALL_WORDS, skin: 'ink', timbre: 'wood' };
+
+export const PACK_KEYS = Object.keys(WORD_PACKS);
 
 /** 词包合法性校验。 */
 export function normalizePack(v) {
