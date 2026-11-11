@@ -43,6 +43,8 @@ export function renderPerfReport(history) {
   }
   const latest = list[list.length - 1];
   const prev = list.length > 1 ? list[list.length - 2] : null;
+  const best = Math.max(...list.map((r) => r.fps));
+  const worst = Math.min(...list.map((r) => r.fps));
   const rows = list.map((r, i) => {
     const d = prev && i === list.length - 1 ? (r.fps - prev.fps) : null;
     return `<tr><td>${new Date(r.ts).toISOString().slice(0, 16).replace('T', ' ')}</td>` +
@@ -62,7 +64,7 @@ export function renderPerfReport(history) {
 </style></head><body>
 <h1>拾径 · 性能趋势</h1>
 <div class="card"><span class="k">共 ${list.length} 次记录 · 最近一次 ${new Date(latest.ts).toISOString().slice(0, 16).replace('T', ' ')}</span>
-<p>帧率 <b>${latest.fps}</b> fps · drawcall <b>${latest.drawCalls}</b> · 三角形 <b>${latest.triangles}</b> · 开局 <b>${latest.buildMs}ms</b>
+<p>帧率 <b>${latest.fps}</b> fps（历史最佳 <b>${best}</b> / 最差 <b>${worst}</b>） · drawcall <b>${latest.drawCalls}</b> · 三角形 <b>${latest.triangles}</b> · 开局 <b>${latest.buildMs}ms</b>
 ${prev ? ` · 较上次帧率 <b>${(latest.fps - prev.fps >= 0 ? '+' : '') + (latest.fps - prev.fps).toFixed(1)}</b>` : ''}</p></div>
 <div class="grid">
  <div class="card"><div class="k">帧率趋势</div><svg width="520" height="120">${svgLine(list.map((r) => r.fps), { color: '#6cd0ff' })}</svg></div>

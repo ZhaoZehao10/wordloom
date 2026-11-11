@@ -746,7 +746,40 @@ ok(achPanel.countText === `${achPanel.info0.unlocked.length}/13`, `成就计数�
 ok(achPanel.closed, '成就面板可关闭');
 ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
 
-console.log('\n[24] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[24] 每周挑战 & 海报生涯成就');
+const weekly = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  const info = window.__rw.weeklyInfo();
+  window.__rw.debugStartWeekly();
+  await new Promise(r => setTimeout(r, 250));
+  const snap = () => JSON.stringify({
+    n: st.graph.nodes.map((n) => [n.word, +n.pos.x.toFixed(4), +n.pos.z.toFixed(4)]),
+    e: st.graph.edges,
+  });
+  const g1 = snap();
+  const isWeekly1 = st.isWeekly;
+  const diff1 = st.diff;
+  window.__rw.debugStartWeekly();                 // 同一周再进一次
+  await new Promise(r => setTimeout(r, 250));
+  const g2 = snap();
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  const after = window.__rw.weeklyInfo();
+  const statusText = document.getElementById('weekly-status').textContent;
+  const statsText = document.getElementById('end-stats').textContent;
+  const posterUrl = window.__rw.buildPosterDataURL();
+  return { info, sameGraph: g1 === g2, isWeekly1, diff1, after, statusText, statsText, posterOk: posterUrl.startsWith('data:image/png') && posterUrl.length > 20000 };
+})()`);
+ok(/^\d{4}-W\d{2}$/.test(weekly.info.key), `周键格式 ${weekly.info.key}`);
+ok(weekly.sameGraph, '同一周重复进入 → 完全相同词图');
+ok(weekly.isWeekly1 === true, '每周挑战标记正确');
+ok(['easy', 'normal', 'hard'].includes(weekly.diff1), `周难度合法（${weekly.diff1}）`);
+ok(weekly.after.status.played === true, '完成后记录本周已挑战');
+ok(weekly.statusText.includes('本周已完成'), `引导页显示本周状态「${weekly.statusText}」`);
+ok(weekly.statsText.includes('每周挑战'), `结算页标明每周挑战「${weekly.statsText}」`);
+ok(weekly.posterOk, '海报可正常生成（含生涯成就行）');
+
+console.log('\n[25] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

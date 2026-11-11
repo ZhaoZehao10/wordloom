@@ -22,7 +22,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -55,6 +55,8 @@ const state = {
   roundNew: [],                 // 本局新收录（词集里原本没有的）
   diff: 'normal',               // 本局难度 key
   isDaily: false,               // 本局是否为每日挑战
+  isWeekly: false,              // 本局是否为每周挑战
+  weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
   dailyKey: null,               // 每日挑战的日期键
   daily: parseDaily(localStorage.getItem('rw-daily') || ''),  // 今日挑战成绩
@@ -244,6 +246,8 @@ window.__rw = {
     isDaily: state.isDaily,
   }),
   debugStartDaily: () => startRound(null, { daily: dailyKey() }),
+  weeklyInfo: () => ({ key: weekKey(), seed: weekSeed(weekKey()), difficulty: weekDifficulty(weekKey()), status: weeklyStatus(state.weekly, weekKey()), isWeekly: state.isWeekly }),
+  debugStartWeekly: () => startRound(null, { weekly: weekKey() }),
   // 存档
   exportSaveText: () => exportSave(collectSave()),
   importSaveText: (text) => {
@@ -588,16 +592,21 @@ function beginGlide(idx) {
 // ---------------- 回合流程 ----------------
 
 function startRound(diffKey, opts = {}) {
-  // 每日挑战：难度由日期轮换决定，种子固定 → 同一天所有人同一张图
+  // 每日/每周挑战：难度与种子由日期/周次决定 → 同期所有人同一张图
   const daily = typeof opts.daily === 'string' ? opts.daily : null;
+  const weekly = typeof opts.weekly === 'string' ? opts.weekly : null;
   const diff = daily
     ? (DIFFICULTIES.find((d) => d.key === dailyDifficulty(daily)) || DIFFICULTIES[1])
-    : (DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1]);
+    : weekly
+      ? (DIFFICULTIES.find((d) => d.key === weekDifficulty(weekly)) || DIFFICULTIES[1])
+      : (DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1]);
 
   state.diff = diff.key;
   state.isDaily = !!daily;
+  state.isWeekly = !!weekly;
   state.dailyKey = daily;
-  if (!daily) {
+  state.weeklyKey = weekly;
+  if (!daily && !weekly) {
     state.pendingDiff = diff.key;               // 记住难度，跨局/跨会话生效
     localStorage.setItem('rw-diff', diff.key);
   }
@@ -627,7 +636,7 @@ function startRound(diffKey, opts = {}) {
   state.graph = generateGraph({
     words: WORD_PACKS[state.pack].words,
     steps: diff.steps,
-    seed: daily ? dailySeed(daily) : (opts.seed ?? ((Date.now() ^ (state.round * 7919)) >>> 0)),
+    seed: daily ? dailySeed(daily) : (weekly ? weekSeed(weekly) : (opts.seed ?? ((Date.now() ^ (state.round * 7919)) >>> 0))),
     wordCount: 14 + diff.steps,
   });
 
@@ -670,12 +679,16 @@ function endRound(win) {
     unlimited: state.unlimited,
   }, HISTORY_LIMIT);
   localStorage.setItem('rw-history', serializeHistory(state.history));
-  // 每日挑战成绩（每天只保留最新一次）
+  // 每日/每周挑战成绩（每个周期只保留最新一次）
   if (state.isDaily && state.dailyKey) {
     state.daily = dailyRecord({ key: state.dailyKey, score: state.score, win });
     localStorage.setItem('rw-daily', JSON.stringify(state.daily));
     state.dailyHistory = appendDailyHistory(state.dailyHistory, state.daily);
     localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(state.dailyHistory));
+  }
+  if (state.isWeekly && state.weeklyKey) {
+    state.weekly = weeklyRecord({ key: state.weeklyKey, score: state.score, win });
+    localStorage.setItem('rw-weekly', JSON.stringify(state.weekly));
   }
   // 成就解锁持久化（跨局累计）
   try {
@@ -720,6 +733,7 @@ function resultData(win) {
     achievements: r.achievements,
     diffName: (DIFFICULTIES.find((d) => d.key === state.diff) || DIFFICULTIES[1]).name,
     historyLine: historyLine(),
+    career: { unlocked: state.unlocked.length, total: Object.keys(ACHIEVEMENTS).length },
   };
 }
 
@@ -1274,6 +1288,7 @@ function calibrateSeated() {
 function wire2D() {
   $('start-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(state.pendingDiff); };
   $('daily-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { daily: dailyKey() }); };
+  $('weekly-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { weekly: weekKey() }); };
   $('save-export').onclick = () => { sfx.ui(); exportSaveFile(); };
   $('save-import').onclick = () => { sfx.ui(); $('save-file').click(); };
   $('save-file').onchange = (e) => importSaveFile(e);
@@ -1429,6 +1444,16 @@ function updateHud() {
       : `${L('今日未完成')} · ${diffName} ${L('难度')}`) + streakText;
   }
   renderDailyBoard();
+  // 每周挑战状态
+  const wk = weekKey();
+  const ws = weeklyStatus(state.weekly, wk);
+  const wel = $('weekly-status');
+  if (wel) {
+    const wDiff = L((DIFFICULTIES.find((d) => d.key === weekDifficulty(wk)) || DIFFICULTIES[1]).name);
+    wel.textContent = ws.played
+      ? `${L('本周已完成')} · ${ws.score} ${L('分')}`
+      : `${L('本周未完成')} · ${wDiff} ${L('难度')}`;
+  }
   drawDailyChart();
 }
 
@@ -1450,7 +1475,7 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
-  $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
+  $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
   const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('end-history').textContent = [
     historyLine(),

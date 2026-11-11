@@ -24,7 +24,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -1306,6 +1306,60 @@ section('R. 成就持久化 & 历史最佳');
   eq(dailyBest([{ key: 'a', score: 20 }, { key: 'b', score: 20 }]), { score: 20, key: 'a' }, '同分取先出现');
   eq(dailyBest([{ key: 'a', score: NaN }, { key: 'b', score: -5 }]), { score: 0, key: null }, '脏值忽略');
   eq(dailyBest(null).score, 0, 'null 安全');
+}
+
+// ═══════════════════ S. 每周挑战 / 海报生涯 / 报告对比 ═══════════════════
+
+section('S. 每周挑战 & 海报生涯');
+
+{
+  eq(weekKey(new Date('2026-01-01T12:00:00')), '2026-W01', '2026-01-01 属于 W01');
+  eq(weekKey(new Date('2025-12-29T12:00:00')), '2026-W01', '跨年周归入 2026-W01');
+  eq(weekKey(new Date('2026-11-12T12:00:00')), '2026-W46', '2026-11-12 为 W46');
+  eq(weekKey(new Date('2026-12-31T12:00:00')), '2026-W53', '2026 有 53 个 ISO 周');
+  ok(/^\d{4}-W\d{2}$/.test(weekKey()), '默认参数格式正确');
+
+  const s1 = weekSeed('2026-W46');
+  const s2 = weekSeed('2026-W46');
+  ok(Number.isInteger(s1) && s1 >= 0, '周种子为整数');
+  eq(s1, s2, '同一周种子相同');
+  ok(s1 !== weekSeed('2026-W47'), '不同周种子不同');
+
+  eq(weekDifficulty('2026-W45'), 'easy', 'W45 → easy（45%3=0）');
+  eq(weekDifficulty('2026-W46'), 'normal', 'W46 → normal');
+  eq(weekDifficulty('2026-W47'), 'hard', 'W47 → hard');
+  eq(weekDifficulty('bad'), 'normal', '非法周键回落 normal');
+
+  eq(parseWeekly(''), null, '空周记录');
+  eq(parseWeekly('bad'), null, '坏 JSON');
+  eq(parseWeekly('{"key":"2026-W46"}'), null, '缺分数');
+  eq(parseWeekly('{"key":"2026-46","score":1}'), null, '周键格式错误');
+  const w = parseWeekly('{"key":"2026-W46","score":88,"win":true}');
+  ok(w && w.score === 88 && w.win === true, '合法周记录解析');
+  eq(weeklyStatus(w, '2026-W46'), { played: true, score: 88, win: true }, '本周状态已完成');
+  eq(weeklyStatus(w, '2026-W47'), { played: false, score: 0, win: false }, '跨周失效');
+  eq(weeklyRecord({ key: 'x', score: NaN }).score, 0, '周记录非法分数归零');
+}
+
+{
+  // 海报生涯成就行
+  const c = posterContent({
+    win: true, words: ['光'], wordCount: 1, steps: 1, score: 10,
+    quote: { flavor: '哲思', text: 't' }, achievements: [],
+    career: { unlocked: 5, total: 13 },
+  });
+  eq(c.career, '成就 5/13', '海报包含生涯成就进度');
+  eq(posterContent({ win: false, words: [], wordCount: 0, steps: 0, score: 0, quote: { flavor: 'x', text: 'y' } }).career, '', '无生涯数据时为空');
+}
+
+{
+  // 报告的最佳/最差
+  const html = renderPerfReport([
+    { ts: 1, fps: 70, drawCalls: 40, triangles: 8000, buildMs: 500 },
+    { ts: 2, fps: 80, drawCalls: 41, triangles: 8100, buildMs: 480 },
+  ]);
+  ok(html.includes('历史最佳 <b>80</b>'), '报告包含历史最佳 fps');
+  ok(html.includes('最差 <b>70</b>'), '报告包含历史最差 fps');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

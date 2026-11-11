@@ -206,3 +206,54 @@ export function dailyBest(history) {
   }
   return best;
 }
+// ---------------- 每周挑战（ISO 周） ----------------
+
+const pad2w = (n) => String(n).padStart(2, '0');
+
+/** ISO 周键：YYYY-Www（周一为一周开始）。 */
+export function weekKey(date = new Date()) {
+  const d = date instanceof Date && !Number.isNaN(date.getTime()) ? new Date(date) : new Date();
+  // 用 UTC 计算 ISO 周，避免时区边界差异
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;            // 周日=7
+  t.setUTCDate(t.getUTCDate() + 4 - day);    // 到本周四
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+  return `${t.getUTCFullYear()}-W${pad2w(week)}`;
+}
+
+/** 周种子：复用 dailySeed 的 FNV-1a。 */
+export function weekSeed(key) {
+  return dailySeed(key);
+}
+
+/** 周难度轮换：按 ISO 周序号三天/三周轮换。 */
+export function weekDifficulty(key, keys = ['easy', 'normal', 'hard']) {
+  const m = String(key).match(/^(\d{4})-W(\d{2})$/);
+  if (!m) return keys[1] ?? 'normal';
+  const n = Number(m[2]);
+  return keys[((n % keys.length) + keys.length) % keys.length];
+}
+
+/** 解析每周成绩。 */
+export function parseWeekly(raw) {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return null;
+    if (typeof d.key !== 'string' || !/^\d{4}-W\d{2}$/.test(d.key)) return null;
+    if (!Number.isFinite(d.score)) return null;
+    return { key: d.key, score: d.score, win: !!d.win, ts: Number.isFinite(d.ts) ? d.ts : 0 };
+  } catch {
+    return null;
+  }
+}
+
+export function weeklyStatus(saved, key) {
+  if (!saved || saved.key !== key) return { played: false, score: 0, win: false };
+  return { played: true, score: saved.score, win: !!saved.win };
+}
+
+export function weeklyRecord({ key, score, win, ts = Date.now() }) {
+  return { key: String(key), score: Number.isFinite(score) ? score : 0, win: !!win, ts: Number.isFinite(ts) ? ts : Date.now() };
+}

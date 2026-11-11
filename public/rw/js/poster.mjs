@@ -29,6 +29,7 @@ export function posterContent(result, { round = 0 } = {}) {
     flavor: `—— ${result.quote.flavor} 一言`,
     stats: `${result.steps} 步 · 收录 ${result.wordCount ?? words.length} 词 · ${result.score} 分`,
     achievements: (result.achievements || []).map((a) => `${a.icon} ${a.name}`),
+    career: result.career ? `成就 ${result.career.unlocked}/${result.career.total}` : '',
     footer: round > 0 ? `第 ${round} 局 · Pico Neo3 VR` : 'Pico Neo3 VR',
   };
 }
@@ -115,6 +116,7 @@ export function drawPoster(c, result, { round = 0, width = W, height = H } = {})
   // 数据（与一言保持呼吸距离，但不早于 930）
   const statsY = Math.max(y + 140, 930);
   text(data.stats, width / 2, statsY, '30px "Segoe UI",sans-serif', '#dfe7ff');
+  if (data.career) text(data.career, width / 2, statsY + 42, '24px "PingFang SC",sans-serif', '#8b96b8');
 
   // 成就
   let ax = 160;
