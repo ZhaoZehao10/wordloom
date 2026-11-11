@@ -158,3 +158,16 @@ export const PACK_KEYS = Object.keys(WORD_PACKS);
 export function normalizePack(v) {
   return PACK_KEYS.includes(v) ? v : 'classic';
 }
+/**
+ * 词包收藏进度：每个词包已收集多少词（按基础词包统计，混合包不计）。
+ * @returns {{key,name,got,total,pct}[]}
+ */
+export function packProgress(collection, packKeys = BASE_PACK_KEYS) {
+  const set = new Set(Array.isArray(collection) ? collection : []);
+  return packKeys.map((k) => {
+    const p = WORD_PACKS[k];
+    const total = p.words.length;
+    const got = p.words.filter((w) => set.has(w)).length;
+    return { key: k, name: p.name, got, total, pct: Math.round((got / Math.max(1, total)) * 100) };
+  });
+}

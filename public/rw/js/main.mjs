@@ -7,7 +7,7 @@
 //   · 彩蛋：连点标题七次解除步数限制；键盘敲出 1024 触发音效与成就。
 import * as THREE from '../../vendor/three.module.min.js';
 import { VRButton } from '../../vendor/VRButton.js';
-import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
+import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, packProgress, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
@@ -20,7 +20,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -53,6 +53,7 @@ const state = {
   roundNew: [],                 // 本局新收录（词集里原本没有的）
   diff: 'normal',               // 本局难度 key
   isDaily: false,               // 本局是否为每日挑战
+  dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
   dailyKey: null,               // 每日挑战的日期键
   daily: parseDaily(localStorage.getItem('rw-daily') || ''),  // 今日挑战成绩
   lang: normalizeLang(localStorage.getItem(LANG_KEY) || 'zh'), // 界面语言
@@ -596,6 +597,14 @@ function startRound(diffKey, opts = {}) {
   }
   state.stepsMax = diff.steps;
   state.stepsLeft = diff.steps;
+  // 连续打卡奖励：每日挑战按 streak 额外加步数
+  state.dailyBonus = 0;
+  if (daily) {
+    const bonus = streakBonus(dailyStreak(state.dailyHistory, daily).current);
+    state.dailyBonus = bonus;
+    state.stepsMax += bonus;
+    state.stepsLeft += bonus;
+  }
   state.unlimited = false;
   state.titleTaps = 0;
   state.eggTyped = '';
@@ -1005,7 +1014,7 @@ function openCollection() {
   if (!grid) return { chips: 0, got: 0 };
   const got = new Set(state.collection);
   grid.innerHTML = '';
-  for (const w of WORDS) {
+  for (const w of ALL_WORDS) {
     const chip = document.createElement('span');
     chip.className = got.has(w) ? 'coll-chip got' : 'coll-chip';
     chip.textContent = w;
@@ -1013,6 +1022,15 @@ function openCollection() {
   }
   const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('coll-count').textContent = `${prog.collected}/${prog.total}`;
+  // 词包收藏进度条
+  const box = $('pack-progress');
+  if (box) {
+    box.innerHTML = packProgress(state.collection).map((r) =>
+      `<div class="pack-row"><span class="pack-name">${L(r.name)}</span>` +
+      `<span class="pack-bar"><i style="width:${r.pct}%"></i></span>` +
+      `<span class="pack-num">${r.got}/${r.total}</span></div>`
+    ).join('');
+  }
   $('coll').classList.remove('hidden');
   sfx.ui();
   return {
@@ -1400,7 +1418,7 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
-  $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}`;
+  $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
   const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('end-history').textContent = [
     historyLine(),

@@ -24,6 +24,8 @@
     "test:perf": "node test/rw-perf.mjs",
     "build:offline": "node tools/make-offline.mjs",
     "build:icons": "node tools/make-icons.mjs",
+    "report:perf": "node tools/perf-report.mjs",
+    "report:perf:open": "node tools/perf-report.mjs && start dist/perf-report.html",
     "build:apk": "powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1",
     "build": "node tools/make-offline.mjs && powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1"
   },

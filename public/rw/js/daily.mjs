@@ -187,3 +187,13 @@ export function dailyStreak(history, todayKey) {
   }
   return { current, best: Math.max(best, current) };
 }
+/**
+ * 连续打卡奖励：连续 3 天起，每日挑战额外加步数。
+ * 3~6 天 +1 步，7 天及以上 +2 步。
+ */
+export function streakBonus(streak) {
+  const n = Number.isFinite(Number(streak)) ? Math.max(0, Math.trunc(Number(streak))) : 0;
+  if (n >= 7) return 2;
+  if (n >= 3) return 1;
+  return 0;
+}

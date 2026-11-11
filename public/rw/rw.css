@@ -244,3 +244,12 @@ button.ghost:hover { color: var(--text); }
 .month-cell .d { font-size: 12px; opacity: 0.8; }
 .month-cell .s { font-size: 10px; font-weight: 600; }
 #daily-chart { cursor: pointer; }
+
+/* ---------- 词包收藏进度 ---------- */
+
+.pack-progress { display: flex; flex-direction: column; gap: 5px; margin: 0 auto 12px; max-width: 420px; }
+.pack-row { display: grid; grid-template-columns: 52px 1fr 56px; align-items: center; gap: 8px; font-size: 11px; color: #8b96b8; }
+.pack-name { text-align: right; }
+.pack-bar { height: 7px; border-radius: 999px; background: rgba(140,165,255,0.14); overflow: hidden; }
+.pack-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #6cd0ff, #b18cff); }
+.pack-num { text-align: left; color: #5f6a88; }

@@ -8,7 +8,7 @@
 //   D. 合批几何正确性（边缓冲 / 词球烘焙 / 顶点色回写）
 import { generateGraph } from '../public/rw/js/graph.mjs';
 import fs from 'node:fs';
-import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack } from '../public/rw/js/data.mjs';
+import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
   snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode,
@@ -24,10 +24,11 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
+import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -1218,6 +1219,58 @@ section('P. 连续打卡');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 7 })), ['七日不辍'], '连续 7 天 → 七日不辍');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 6 })), [], '连续 6 天不达成（边界）');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 30 })), ['七日不辍'], '更长连续仍只解锁一次');
+}
+
+// ═══════════════════ Q. 打卡奖励 / 词包进度 / 性能报告 ═══════════════════
+
+section('Q. 打卡奖励 & 词包进度 & 性能报告');
+
+{
+  eq(streakBonus(0), 0, '0 天无奖励');
+  eq(streakBonus(2), 0, '2 天无奖励');
+  eq(streakBonus(3), 1, '3 天 +1 步');
+  eq(streakBonus(6), 1, '6 天 +1 步');
+  eq(streakBonus(7), 2, '7 天 +2 步');
+  eq(streakBonus(30), 2, '30 天仍 +2 步（封顶）');
+  eq(streakBonus(-5), 0, '负值按 0');
+  eq(streakBonus(NaN), 0, 'NaN 按 0');
+  eq(streakBonus('3'), 1, '字符串数字可解析');
+}
+
+{
+  const coll = ['光', '熵', '诗'];
+  const rows = packProgress(coll);
+  eq(rows.length, 4, '四个基础词包进度');
+  const classic = rows.find((r) => r.key === 'classic');
+  eq(classic.got, 3, '经典包已收集 3（光/熵/诗）');
+  eq(classic.total, 60, '经典包总数 60');
+  eq(classic.pct, Math.round((3 / 60) * 100), '经典包百分比');
+  const poetry = rows.find((r) => r.key === 'poetry');
+  eq(poetry.got, 1, '诗词包已收集 1（诗）');
+  const geek = rows.find((r) => r.key === 'geek');
+  eq(geek.got, 1, '极客包含「熵」');
+  eq(packProgress([]).every((r) => r.got === 0 && r.pct === 0), true, '空词集全 0');
+  eq(packProgress(null).length, 4, 'null 安全');
+}
+
+{
+  // 性能报告渲染
+  const empty = renderPerfReport([]);
+  ok(empty.includes('暂无性能历史数据'), '空历史给出提示');
+  const hist = [
+    { ts: 1700000000000, fps: 70, drawCalls: 40, triangles: 8000, buildMs: 500 },
+    { ts: 1700003600000, fps: 75, drawCalls: 42, triangles: 8100, buildMs: 480 },
+  ];
+  const html = renderPerfReport(hist);
+  ok(html.includes('拾径 · 性能趋势'), '报告标题');
+  ok(html.includes('<b>75</b>'), '包含最新帧率');
+  ok(html.includes('+5.0'), '包含与上次的差值');
+  ok(html.includes('<polyline'), '包含趋势折线');
+  ok(html.includes('1700003600000') === false, '不直接输出时间戳数字');
+  // svgLine 边界
+  ok(svgLine([]).includes('暂无数据'), 'svgLine 空数据');
+  ok(svgLine([1, 2, 3]).includes('polyline'), 'svgLine 正常数据');
+  ok(svgLine([5, 5, 5]).includes('polyline'), 'svLine 常数序列不除零');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

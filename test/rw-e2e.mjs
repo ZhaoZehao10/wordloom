@@ -350,7 +350,7 @@ const panel = await evalJs(`(() => {
   return { ...r, visible, countText, closed, collection: window.__rw.collectionInfo().count };
 })()`);
 ok(panel.visible, '点词集打开一览面板');
-ok(panel.chips === 60, `面板渲染全部词库条目（${panel.chips} 个）`);
+ok(panel.chips === 120, `面板渲染全部词库条目（${panel.chips} 个）`);
 ok(panel.got === panel.collection, `已收集高亮数 = 词集数（${panel.got}/${panel.collection}）`);
 ok(panel.countText.split('/')[1] === '120', `面板标题显示进度 ${panel.countText}（总词库 120）`);
 ok(panel.closed, '可关闭面板');
@@ -683,7 +683,42 @@ ok(streak.mix.pack === 'mix' && streak.mix.words === 120, `混合词包可用（
 ok(streak.statusText.includes('连续 7'), `每日状态显示连续天数「${streak.statusText}」`);
 ok(streak.ach.includes('七日不辍'), `连续 7 天解锁「七日不辍」（${streak.ach.trim().replace(/\s+/g, ' ')}）`);
 
-console.log('\n[22] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[22] 打卡奖励 & 词包进度条');
+const bonus = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  // 构造 7 天连续（含今天）
+  const today = window.__rw.dailyInfo().key;
+  const rows = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(new Date(today + 'T00:00:00').getTime() - i * 86400000);
+    const p = (n) => String(n).padStart(2, '0');
+    rows.push({ key: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), score: 1, win: false });
+  }
+  window.__rw.debugSetDailyHistory(rows);
+  const info = window.__rw.dailyInfo();
+  window.__rw.debugStartDaily();
+  await new Promise(r => setTimeout(r, 250));
+  const stepsAfterBonus = st.stepsLeft;
+  const maxSteps = st.stepsMax;
+  const diff = st.diff;
+  window.__rw.endRound(false);
+  await new Promise(r => setTimeout(r, 150));
+  const statsText = document.getElementById('end-stats').textContent;
+
+  const coll = window.__rw.debugOpenCollection();
+  const packRows = document.querySelectorAll('#pack-progress .pack-row').length;
+  const bars = document.querySelectorAll('#pack-progress .pack-bar i').length;
+  const firstWidth = document.querySelector('#pack-progress .pack-bar i')?.style.width || '';
+  window.__rw.debugCloseCollection();
+  return { diff, stepsAfterBonus, maxSteps, statsText, packRows, bars, firstWidth };
+})()`);
+const baseSteps = { easy: 16, normal: 12, hard: 9 }[bonus.diff];
+ok(bonus.stepsAfterBonus === baseSteps + 2 && bonus.maxSteps === baseSteps + 2, `连续 7 天每日挑战 +2 步（${bonus.stepsAfterBonus}/${baseSteps}+2）`);
+ok(bonus.statsText.includes('+2') && bonus.statsText.includes('步数奖励'), `结算页显示步数奖励「${bonus.statsText}」`);
+ok(bonus.packRows === 4 && bonus.bars === 4, `词集面板显示 4 条词包进度（${bonus.packRows}）`);
+ok(/%$/.test(bonus.firstWidth), `进度条有百分比宽度（${bonus.firstWidth}）`);
+
+console.log('\n[23] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
