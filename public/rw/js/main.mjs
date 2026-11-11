@@ -14,13 +14,15 @@ import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './
 import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw } from './rules.mjs';
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
+import { ACHIEVEMENTS } from './data.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
+  parseAchievements, unlockAchievements, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -56,6 +58,7 @@ const state = {
   dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
   dailyKey: null,               // 每日挑战的日期键
   daily: parseDaily(localStorage.getItem('rw-daily') || ''),  // 今日挑战成绩
+  unlocked: parseAchievements(localStorage.getItem(ACHIEVEMENTS_KEY) || ''), // 已解锁成就 key
   lang: normalizeLang(localStorage.getItem(LANG_KEY) || 'zh'), // 界面语言
   moveMode: normalizeMoveMode(localStorage.getItem('rw-move') || 'glide'), // 滑翔 / 瞬移
   tutorialDone: parseTutorialDone(localStorage.getItem(TUTORIAL_DONE_KEY) || ''),
@@ -258,6 +261,9 @@ window.__rw = {
   }),
   debugOpenCollection: () => openCollection(),
   debugOpenMonth: () => openMonth(),
+  debugOpenAchievements: () => openAchievements(),
+  debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
+  achievementInfo: () => ({ unlocked: state.unlocked.slice(), total: Object.keys(ACHIEVEMENTS).length }),
   debugCloseMonth: () => { closeMonth(); return month.classList.contains('hidden'); },
   debugCloseCollection: () => { closeCollection(); return $('coll').classList.contains('hidden'); },
 }; // 测试钩子
@@ -671,6 +677,11 @@ function endRound(win) {
     state.dailyHistory = appendDailyHistory(state.dailyHistory, state.daily);
     localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(state.dailyHistory));
   }
+  // 成就解锁持久化（跨局累计）
+  try {
+    state.unlocked = unlockAchievements(state.unlocked, resultData(win).achievements);
+    localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(state.unlocked));
+  } catch { /* 忽略 */ }
   refreshAdjacencyVisuals();                    // 关掉所有光环
   fillEnd();
   $('end').classList.remove('hidden');
@@ -1041,6 +1052,24 @@ function openCollection() {
 
 function closeCollection() { $('coll').classList.add('hidden'); }
 
+/** 成就总览：展示全部成就及解锁状态。 */
+function openAchievements() {
+  const grid = $('ach-grid');
+  if (!grid) return { total: 0, unlocked: 0 };
+  const set = new Set(state.unlocked);
+  const entries = Object.entries(ACHIEVEMENTS);
+  grid.innerHTML = entries.map(([k, a]) =>
+    `<div class="ach-item ${set.has(k) ? 'got' : 'locked'}"><b>${a.icon}</b><span>${L(a.name)}</span></div>`
+  ).join('');
+  const unlocked = entries.filter(([k]) => set.has(k)).length;
+  $('ach-count').textContent = `${unlocked}/${entries.length}`;
+  $('ach').classList.remove('hidden');
+  sfx.ui();
+  return { total: entries.length, unlocked };
+}
+
+function closeAchievements() { $('ach').classList.add('hidden'); }
+
 // ---------------- 存档导出 / 导入 / 重置 ----------------
 
 function collectSave() {
@@ -1182,7 +1211,8 @@ function openMonth() {
   const g = monthGrid(state.dailyHistory, {});
   const sum = monthSummary(state.dailyHistory, {});
   $('month-title').textContent = `${L('每日挑战')} · ${g.year}-${String(g.month).padStart(2, '0')}`;
-  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}`;
+  const best = dailyBest(state.dailyHistory);
+  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}` + (best.score > 0 ? ` · ${L('历史最佳')} ${best.score}` : '');
   const grid = $('month-grid');
   grid.innerHTML = '';
   const zh = ['日', '一', '二', '三', '四', '五', '六'];
@@ -1250,6 +1280,8 @@ function wire2D() {
   $('save-reset').onclick = () => resetAll();
   $('coll-open').onclick = () => { openCollection(); };
   $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
+  $('ach-open').onclick = () => { openAchievements(); };
+  $('ach-close').onclick = () => { sfx.ui(); closeAchievements(); };
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
   const chartEl = $('daily-chart');
   if (chartEl) chartEl.onclick = () => openMonth();

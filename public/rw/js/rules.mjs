@@ -36,31 +36,32 @@ export function achievementsFor({
   collectionSize = 0, diffsWon = [], lexiconTotal = 0, packsCompleted = [], streakBest = 0,
 }) {
   const out = [];
-  if (win) out.push(ACHIEVEMENTS.reach);
-  if (win && !unlimited && stepsLeft >= 5) out.push(ACHIEVEMENTS.calm);
-  if (wordCount >= 10) out.push(ACHIEVEMENTS.pearls);
-  if (!win && wordCount >= 6) out.push(ACHIEVEMENTS.stroll);
-  if (unlimited) out.push(ACHIEVEMENTS.egg);
+  const add = (key) => out.push({ key, ...ACHIEVEMENTS[key] });
+  if (win) add('reach');
+  if (win && !unlimited && stepsLeft >= 5) add('calm');
+  if (wordCount >= 10) add('pearls');
+  if (!win && wordCount >= 6) add('stroll');
+  if (unlimited) add('egg');
   // —— 跨局元进度成就 ——
-  if (collectionSize >= 30) out.push(ACHIEVEMENTS.collector);
+  if (collectionSize >= 30) add('collector');
   if (Array.isArray(diffsWon) && ['easy', 'normal', 'hard'].every((k) => diffsWon.includes(k))) {
-    out.push(ACHIEVEMENTS.allDiffs);
+    add('allDiffs');
   }
-  if (lexiconTotal > 0 && collectionSize >= lexiconTotal) out.push(ACHIEVEMENTS.lexicon);
+  if (lexiconTotal > 0 && collectionSize >= lexiconTotal) add('lexicon');
   // —— 词包专属成就（固定顺序，便于测试与展示稳定）——
   const PACK_ACHIEVEMENTS = [
-    ['classic', ACHIEVEMENTS.packClassic],
-    ['poetry', ACHIEVEMENTS.packPoetry],
-    ['geek', ACHIEVEMENTS.packGeek],
-    ['nature', ACHIEVEMENTS.packNature],
+    ['classic', 'packClassic'],
+    ['poetry', 'packPoetry'],
+    ['geek', 'packGeek'],
+    ['nature', 'packNature'],
   ];
   if (Array.isArray(packsCompleted)) {
-    for (const [key, ach] of PACK_ACHIEVEMENTS) {
-      if (packsCompleted.includes(key)) out.push(ach);
+    for (const [packKey, achKey] of PACK_ACHIEVEMENTS) {
+      if (packsCompleted.includes(packKey)) add(achKey);
     }
   }
   // —— 连续打卡成就 ——
-  if (Number.isFinite(streakBest) && streakBest >= 7) out.push(ACHIEVEMENTS.streak7);
+  if (Number.isFinite(streakBest) && streakBest >= 7) add('streak7');
   return out;
 }
 

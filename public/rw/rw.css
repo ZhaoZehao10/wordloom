@@ -253,3 +253,15 @@ button.ghost:hover { color: var(--text); }
 .pack-bar { height: 7px; border-radius: 999px; background: rgba(140,165,255,0.14); overflow: hidden; }
 .pack-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #6cd0ff, #b18cff); }
 .pack-num { text-align: left; color: #5f6a88; }
+
+/* ---------- 成就总览 ---------- */
+
+#ach { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  z-index: 31; background: radial-gradient(1100px 640px at 50% 32%, #131c3e 0%, #0b1020 70%); padding: 18px; }
+#ach.hidden { display: none !important; }
+.ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 8px auto 16px; max-width: 460px; }
+.ach-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
+  border: 1px solid rgba(140,165,255,0.16); background: rgba(20,27,51,0.35); font-size: 13px; color: #5f6a88; }
+.ach-item.got { color: #ffcf4d; border-color: rgba(255,207,77,0.55); background: rgba(255,207,77,0.08); }
+.ach-item b { font-size: 18px; filter: grayscale(0.8); }
+.ach-item.got b { filter: none; }

@@ -1,0 +1,50 @@
+name: Perf report
+
+# 手动或每周一生成性能趋势报告（构建产物上传，不阻塞主分支）
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 生成本地 HTTPS 证书
+        run: node make-cert.mjs
+
+      - name: 启动静态服务器
+        run: |
+          node server.mjs > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -ks https://localhost:8543/rw/index.html -o /dev/null; then break; fi
+            sleep 1
+          done
+
+      - name: 构建单文件离线版
+        run: node tools/make-offline.mjs
+
+      - name: 性能采集（软门禁，CI 环境不代表真机）
+        env:
+          PERF_SOFT: '1'
+        run: node test/rw-perf.mjs
+
+      - name: 生成趋势报告
+        run: node tools/perf-report.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: |
+            dist/perf-report.html
+            test/perf-history.json
+          if-no-files-found: error

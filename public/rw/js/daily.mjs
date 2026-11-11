@@ -197,3 +197,12 @@ export function streakBonus(streak) {
   if (n >= 3) return 1;
   return 0;
 }
+/** 每日挑战历史最佳：{ score, key }（无记录时 score 0 / key null）。 */
+export function dailyBest(history) {
+  let best = { score: 0, key: null };
+  for (const d of Array.isArray(history) ? history : []) {
+    if (!d || !Number.isFinite(d.score)) continue;
+    if (d.score > best.score) best = { score: d.score, key: typeof d.key === 'string' ? d.key : null };
+  }
+  return best;
+}

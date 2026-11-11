@@ -24,7 +24,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -37,6 +37,7 @@ import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
+  parseAchievements, unlockAchievements,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1271,6 +1272,40 @@ section('Q. 打卡奖励 & 词包进度 & 性能报告');
   ok(svgLine([]).includes('暂无数据'), 'svgLine 空数据');
   ok(svgLine([1, 2, 3]).includes('polyline'), 'svgLine 正常数据');
   ok(svgLine([5, 5, 5]).includes('polyline'), 'svLine 常数序列不除零');
+}
+
+// ═══════════════════ R. 成就持久化 / 历史最佳 ═══════════════════
+
+section('R. 成就持久化 & 历史最佳');
+
+{
+  // 所有成就都带唯一 key
+  const keys = Object.keys(ACHIEVEMENTS);
+  ok(keys.length >= 13, `成就总数 ${keys.length} ≥ 13`);
+  for (const k of keys) ok(ACHIEVEMENTS[k].icon && ACHIEVEMENTS[k].name, `成就 ${k} 有图标与名称`);
+  // achievementsFor 输出带 key
+  const list = achievementsFor({ win: true, stepsLeft: 6, wordCount: 12, collectionSize: 31, streakBest: 7 });
+  ok(list.every((a) => typeof a.key === 'string' && a.key), '成就输出均带 key');
+  eq(new Set(list.map((a) => a.key)).size, list.length, '成就 key 不重复');
+
+  // 解析与合并
+  eq(parseAchievements('').length, 0, '空成就记录');
+  eq(parseAchievements('bad').length, 0, '坏 JSON');
+  eq(parseAchievements('{"a":1}').length, 0, '非数组');
+  eq(parseAchievements('["reach","reach","calm",null,3]').join(','), 'reach,calm', '去重并过滤脏值');
+
+  eq(unlockAchievements([], [{ key: 'reach' }, { key: 'calm' }]).sort().join(','), 'calm,reach', '新解锁合并');
+  eq(unlockAchievements(['reach'], [{ key: 'reach' }, { key: 'egg' }]).sort().join(','), 'egg,reach', '合并去重');
+  eq(unlockAchievements(null, [{ key: 'x' }]).join(','), 'x', 'null 历史安全');
+  eq(unlockAchievements(['a'], [null, {}, { key: '' }]).join(','), 'a', '脏成就项被忽略');
+}
+
+{
+  eq(dailyBest([]), { score: 0, key: null }, '空历史最佳为 0');
+  eq(dailyBest([{ key: 'a', score: 10 }, { key: 'b', score: 30 }, { key: 'c', score: 5 }]), { score: 30, key: 'b' }, '历史最佳分与日期');
+  eq(dailyBest([{ key: 'a', score: 20 }, { key: 'b', score: 20 }]), { score: 20, key: 'a' }, '同分取先出现');
+  eq(dailyBest([{ key: 'a', score: NaN }, { key: 'b', score: -5 }]), { score: 0, key: null }, '脏值忽略');
+  eq(dailyBest(null).score, 0, 'null 安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

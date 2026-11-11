@@ -718,7 +718,35 @@ ok(bonus.statsText.includes('+2') && bonus.statsText.includes('步数奖励'), `
 ok(bonus.packRows === 4 && bonus.bars === 4, `词集面板显示 4 条词包进度（${bonus.packRows}）`);
 ok(/%$/.test(bonus.firstWidth), `进度条有百分比宽度（${bonus.firstWidth}）`);
 
-console.log('\n[23] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[23] 成就总览 & 历史最佳');
+const achPanel = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  // 确保有已解锁成就
+  const info0 = window.__rw.achievementInfo();
+  const panel = window.__rw.debugOpenAchievements();
+  const gotDom = document.querySelectorAll('#ach-grid .ach-item.got').length;
+  const lockedDom = document.querySelectorAll('#ach-grid .ach-item.locked').length;
+  const countText = document.getElementById('ach-count').textContent;
+  const closed = window.__rw.debugCloseAchievements();
+  // 月视图历史最佳
+  const today = window.__rw.dailyInfo().key;
+  window.__rw.debugSetDailyHistory([
+    { key: today, score: 42, win: false },
+  ]);
+  window.__rw.debugOpenMonth();
+  const monthText = document.getElementById('month-summary').textContent;
+  window.__rw.debugCloseMonth();
+  return { info0, panel, gotDom, lockedDom, countText, closed, monthText };
+})()`);
+ok(achPanel.info0.total === 13, `成就总数 ${achPanel.info0.total}`);
+ok(achPanel.info0.unlocked.length > 0, `已有解锁成就（${achPanel.info0.unlocked.length}）`);
+ok(achPanel.panel.total === 13 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
+ok(achPanel.gotDom === achPanel.info0.unlocked.length && achPanel.lockedDom > 0, `已解锁/未解锁渲染正确（${achPanel.gotDom}/${achPanel.lockedDom}）`);
+ok(achPanel.countText === `${achPanel.info0.unlocked.length}/13`, `成就计数显示 ${achPanel.countText}`);
+ok(achPanel.closed, '成就面板可关闭');
+ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
+
+console.log('\n[24] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

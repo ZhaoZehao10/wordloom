@@ -155,3 +155,28 @@ export function diffsWon(history) {
   return out;
 }
 
+
+// ---------------- 成就解锁记录 ----------------
+
+export const ACHIEVEMENTS_KEY = 'rw-achievements';
+
+/** 解析已解锁成就 key 列表（坏数据当空）。 */
+export function parseAchievements(raw) {
+  if (typeof raw !== 'string' || !raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return [...new Set(arr.filter((k) => typeof k === 'string' && k.length > 0 && k.length <= 40))];
+  } catch {
+    return [];
+  }
+}
+
+/** 合并新解锁的成就（传入 achievementsFor 的输出，按 key 去重）。 */
+export function unlockAchievements(existing, list) {
+  const set = new Set(Array.isArray(existing) ? existing : []);
+  for (const a of Array.isArray(list) ? list : []) {
+    if (a && typeof a.key === 'string' && a.key) set.add(a.key);
+  }
+  return [...set];
+}
