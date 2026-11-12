@@ -257,3 +257,66 @@ export function weeklyStatus(saved, key) {
 export function weeklyRecord({ key, score, win, ts = Date.now() }) {
   return { key: String(key), score: Number.isFinite(score) ? score : 0, win: !!win, ts: Number.isFinite(ts) ? ts : Date.now() };
 }
+// ---------------- 每周本地榜 ----------------
+
+export const WEEKLY_HISTORY_KEY = 'rw-weekly-history';
+export const WEEKLY_HISTORY_LIMIT = 26;
+
+/** ISO 周键 → 该周周一（UTC）。 */
+export function weekStartDate(key) {
+  const m = String(key).match(/^(\d{4})-W(\d{2})$/);
+  if (!m) return new Date(Date.UTC(1970, 0, 5));
+  const year = Number(m[1]);
+  const week = Number(m[2]);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const day = jan4.getUTCDay() || 7;
+  const mondayWeek1 = new Date(jan4.getTime() - (day - 1) * 86400000);
+  return new Date(mondayWeek1.getTime() + (week - 1) * 7 * 86400000);
+}
+
+/** 周键加减周数。 */
+export function addWeeks(key, n) {
+  const d = weekStartDate(key);
+  d.setUTCDate(d.getUTCDate() + n * 7);
+  return weekKey(d);
+}
+
+export function parseWeeklyHistory(raw) {
+  if (typeof raw !== 'string' || !raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const d of arr) {
+      if (!d || typeof d !== 'object') continue;
+      if (typeof d.key !== 'string' || !/^\d{4}-W\d{2}$/.test(d.key)) continue;
+      if (!Number.isFinite(d.score) || seen.has(d.key)) continue;
+      seen.add(d.key);
+      out.push({ key: d.key, score: d.score, win: !!d.win, ts: Number.isFinite(d.ts) ? d.ts : 0 });
+    }
+    out.sort((a, b) => (a.key < b.key ? 1 : -1));
+    return out.slice(0, WEEKLY_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+export function appendWeeklyHistory(history, record, limit = WEEKLY_HISTORY_LIMIT) {
+  const list = (Array.isArray(history) ? history : []).filter((d) => d && d.key !== record.key);
+  list.push({ key: record.key, score: record.score, win: !!record.win, ts: record.ts || Date.now() });
+  list.sort((a, b) => (a.key < b.key ? 1 : -1));
+  return list.slice(0, Math.max(1, limit));
+}
+
+/** 最近 weeks 周（含本周）的榜单，从本周往回。 */
+export function weeklyBoard(history, currentKey, weeks = 8) {
+  const map = new Map((Array.isArray(history) ? history : []).map((d) => [d.key, d]));
+  const out = [];
+  for (let i = 0; i < weeks; i++) {
+    const key = addWeeks(currentKey, -i);
+    const rec = map.get(key);
+    out.push({ key, short: key.slice(5), played: !!rec, score: rec ? rec.score : 0, win: !!(rec && rec.win) });
+  }
+  return out;
+}

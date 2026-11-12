@@ -73,6 +73,8 @@ export const EN = {
   '每周挑战': 'Weekly challenge',
   '本周未完成': 'Not played this week',
   '本周已完成': 'Completed this week',
+  '最近 8 周': 'Last 8 weeks',
+  '新成就': 'New achievement',
   '已解锁': 'Unlocked',
   '未解锁': 'Locked',
   '步数奖励': 'bonus moves',

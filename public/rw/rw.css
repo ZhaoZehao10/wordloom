@@ -265,3 +265,25 @@ button.ghost:hover { color: var(--text); }
 .ach-item.got { color: #ffcf4d; border-color: rgba(255,207,77,0.55); background: rgba(255,207,77,0.08); }
 .ach-item b { font-size: 18px; filter: grayscale(0.8); }
 .ach-item.got b { filter: none; }
+
+/* ---------- 每周榜 ---------- */
+
+.week-board { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 0 auto 16px; max-width: 460px; }
+.week-chip { font-size: 11px; padding: 4px 9px; border-radius: 8px; border: 1px solid rgba(140,165,255,0.16);
+  color: #5f6a88; background: rgba(20,27,51,0.35); min-width: 48px; text-align: center; }
+.week-chip.played { color: #dfe7ff; border-color: rgba(108,208,255,0.5); }
+.week-chip.win { color: #ffcf4d; border-color: rgba(255,207,77,0.6); }
+.week-chip small { display: block; font-size: 10px; opacity: .75; }
+
+/* ---------- 新成就飘字 ---------- */
+
+#ach-toast {
+  position: fixed; top: 96px; left: 50%; transform: translateX(-50%) translateY(-8px);
+  z-index: 60; padding: 10px 22px; border-radius: 999px;
+  background: rgba(30, 24, 10, 0.92); border: 1px solid rgba(255,207,77,0.6);
+  color: #ffcf4d; font-size: 15px; letter-spacing: 1px;
+  box-shadow: 0 0 24px rgba(255,207,77,0.25);
+  opacity: 0; transition: opacity .25s ease, transform .25s ease;
+  pointer-events: none;
+}
+#ach-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

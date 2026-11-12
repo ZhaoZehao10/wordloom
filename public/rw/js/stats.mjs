@@ -180,3 +180,8 @@ export function unlockAchievements(existing, list) {
   }
   return [...set];
 }
+/** 本次新解锁的成就（prev 中不存在的 key）。 */
+export function newAchievements(prev, list) {
+  const set = new Set(Array.isArray(prev) ? prev : []);
+  return (Array.isArray(list) ? list : []).filter((a) => a && typeof a.key === 'string' && a.key && !set.has(a.key));
+}

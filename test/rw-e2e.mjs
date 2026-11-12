@@ -779,7 +779,37 @@ ok(weekly.statusText.includes('本周已完成'), `引导页显示本周状态�
 ok(weekly.statsText.includes('每周挑战'), `结算页标明每周挑战「${weekly.statsText}」`);
 ok(weekly.posterOk, '海报可正常生成（含生涯成就行）');
 
-console.log('\n[25] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[25] 成就飘字 & 每周本地榜');
+const toast = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  st.unlocked = [];                       // 清空已解锁，模拟首次
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 220));
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 200));
+  const el = document.getElementById('ach-toast');
+  const first = { shown: el.classList.contains('show'), text: el.textContent };
+  // 再次胜利：成就已解锁，不应再次提示
+  el.classList.remove('show');
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 220));
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 200));
+  const second = { shown: el.classList.contains('show') };
+  // 周榜
+  const month = window.__rw.debugOpenMonth();
+  const weekChips = document.querySelectorAll('#week-board .week-chip').length;
+  const firstWeekPlayed = document.querySelector('#week-board .week-chip')?.classList.contains('played');
+  window.__rw.debugCloseMonth();
+  return { first, second, weekChips, firstWeekPlayed, weekRows: month.weekRows };
+})()`);
+ok(toast.first.shown && toast.first.text.includes('新成就'), `首次解锁显示飘字「${toast.first.text}」`);
+ok(toast.first.text.includes('抵达 1024'), '飘字包含成就名称');
+ok(!toast.second.shown, '已解锁的成就不再重复提示');
+ok(toast.weekChips === 8 && toast.weekRows === 8, `月视图显示最近 8 周榜（${toast.weekChips}）`);
+ok(toast.firstWeekPlayed === true, '本周榜第一格标记为已挑战');
+
+console.log('\n[26] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

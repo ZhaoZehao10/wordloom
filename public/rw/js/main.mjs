@@ -18,11 +18,11 @@ import { ACHIEVEMENTS } from './data.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements, ACHIEVEMENTS_KEY,
+  parseAchievements, unlockAchievements, newAchievements, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -57,6 +57,7 @@ const state = {
   isDaily: false,               // 本局是否为每日挑战
   isWeekly: false,              // 本局是否为每周挑战
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
+  weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
   dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
   dailyKey: null,               // 每日挑战的日期键
   daily: parseDaily(localStorage.getItem('rw-daily') || ''),  // 今日挑战成绩
@@ -689,11 +690,16 @@ function endRound(win) {
   if (state.isWeekly && state.weeklyKey) {
     state.weekly = weeklyRecord({ key: state.weeklyKey, score: state.score, win });
     localStorage.setItem('rw-weekly', JSON.stringify(state.weekly));
+    state.weeklyHistory = appendWeeklyHistory(state.weeklyHistory, state.weekly);
+    localStorage.setItem(WEEKLY_HISTORY_KEY, JSON.stringify(state.weeklyHistory));
   }
-  // 成就解锁持久化（跨局累计）
+  // 成就解锁持久化（跨局累计）并提示新解锁
   try {
-    state.unlocked = unlockAchievements(state.unlocked, resultData(win).achievements);
+    const earned = resultData(win).achievements;
+    const newly = newAchievements(state.unlocked, earned);
+    state.unlocked = unlockAchievements(state.unlocked, earned);
     localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(state.unlocked));
+    if (newly.length) showAchievementToast(newly);
   } catch { /* 忽略 */ }
   refreshAdjacencyVisuals();                    // 关掉所有光环
   fillEnd();
@@ -1084,6 +1090,59 @@ function openAchievements() {
 
 function closeAchievements() { $('ach').classList.add('hidden'); }
 
+// ---------------- 新成就提示（2D 飘字 + VR 内面板） ----------------
+
+let achToastTimer = null, vrToast = null, vrToastTimer = null;
+
+function showAchievementToast(list) {
+  if (!Array.isArray(list) || list.length === 0) return false;
+  const names = list.slice(0, 3).map((a) => `${a.icon} ${L(a.name)}`).join('  ');
+  const el = $('ach-toast');
+  if (el) {
+    el.textContent = `🏆 ${L('新成就')}：${names}`;
+    el.classList.remove('hidden');
+    el.classList.add('show');
+    clearTimeout(achToastTimer);
+    achToastTimer = setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.classList.add('hidden'), 320);
+    }, 4000);
+  }
+  if (renderer.xr.isPresenting) showVrAchievementToast(names);
+  return true;
+}
+
+function showVrAchievementToast(text) {
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = 768; cv.height = 160;
+    const c = cv.getContext('2d');
+    c.fillStyle = 'rgba(30,24,10,0.92)';
+    rrect(c, 4, 4, 760, 152, 30); c.fill();
+    c.strokeStyle = 'rgba(255,207,77,0.7)'; c.lineWidth = 4; c.stroke();
+    c.fillStyle = '#ffcf4d'; c.font = 'bold 40px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(`🏆 ${L('新成就')}`, 384, 56);
+    c.fillStyle = '#fff3d0'; c.font = '30px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.fillText(text, 384, 112);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    spr.scale.set(0.9, 0.19, 1);
+    spr.renderOrder = 80;
+    const cp = camera.getWorldPosition(new THREE.Vector3());
+    const q = camera.getWorldQuaternion(new THREE.Quaternion());
+    spr.position.copy(new THREE.Vector3(0, -0.12, -1.2).applyQuaternion(q).add(cp));
+    spr.quaternion.copy(q);
+    scene.add(spr);
+    vrToast = spr;
+    clearTimeout(vrToastTimer);
+    vrToastTimer = setTimeout(() => {
+      if (vrToast) { scene.remove(vrToast); vrToast.material.map?.dispose?.(); vrToast.material.dispose?.(); vrToast = null; }
+    }, 4200);
+  } catch { /* 忽略 */ }
+}
+
 // ---------------- 存档导出 / 导入 / 重置 ----------------
 
 function collectSave() {
@@ -1248,9 +1307,17 @@ function openMonth() {
       grid.appendChild(el);
     }
   }
+  // 最近 8 周榜
+  const wb = $('week-board');
+  if (wb) {
+    const rows = weeklyBoard(state.weeklyHistory, weekKey(), 8);
+    wb.innerHTML = rows.map((r) =>
+      `<span class="week-chip${r.played ? ' played' : ''}${r.win ? ' win' : ''}"><small>${r.short}</small>${r.played ? r.score : '·'}</span>`
+    ).join('');
+  }
   $('month').classList.remove('hidden');
   sfx.ui();
-  return { weeks: g.weeks.length, cells: g.weeks.length * 7, days: g.days };
+  return { weeks: g.weeks.length, cells: g.weeks.length * 7, days: g.days, weekRows: weeklyBoard(state.weeklyHistory, weekKey(), 8).length };
 }
 
 function closeMonth() { $('month').classList.add('hidden'); }

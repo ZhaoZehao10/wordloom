@@ -24,7 +24,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -37,7 +37,7 @@ import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements,
+  parseAchievements, unlockAchievements, newAchievements,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1360,6 +1360,47 @@ section('S. 每周挑战 & 海报生涯');
   ]);
   ok(html.includes('历史最佳 <b>80</b>'), '报告包含历史最佳 fps');
   ok(html.includes('最差 <b>70</b>'), '报告包含历史最差 fps');
+}
+
+// ═══════════════════ T. 周榜 & 新成就判定 ═══════════════════
+
+section('T. 周榜 & 新成就');
+
+{
+  eq(weekStartDate('2026-W46').toISOString().slice(0, 10), '2026-11-09', 'W46 周一为 11-09');
+  eq(addWeeks('2026-W46', -1), '2026-W45', '减一周');
+  eq(addWeeks('2026-W01', -1), '2025-W52', '跨年减一周');
+  eq(addWeeks('2025-W52', 1), '2026-W01', '跨年加一周');
+
+  eq(parseWeeklyHistory('').length, 0, '空周历史');
+  eq(parseWeeklyHistory('bad').length, 0, '坏 JSON');
+  eq(parseWeeklyHistory('{"a":1}').length, 0, '非数组');
+  const wh = parseWeeklyHistory(JSON.stringify([
+    { key: '2026-W45', score: 10 }, { key: '2026-W46', score: 20 },
+    { key: '2026-W46', score: 30 }, { key: 'bad', score: 1 }, null,
+  ]));
+  eq(wh.length, 2, '周历史去重与过滤');
+  eq(wh[0].key, '2026-W46', '按周倒序');
+
+  const app = appendWeeklyHistory(wh, { key: '2026-W46', score: 88, win: true });
+  eq(app[0].score, 88, '同周覆盖');
+  eq(app.length, 2, '覆盖不新增');
+
+  const board = weeklyBoard([{ key: '2026-W46', score: 50, win: true }, { key: '2026-W45', score: 20 }], '2026-W46', 8);
+  eq(board.length, 8, '周榜固定 8 格');
+  eq(board[0].key, '2026-W46', '第一格本周');
+  eq(board[0].score, 50, '本周分数');
+  eq(board[1].score, 20, '上周分数');
+  eq(board[2].played, false, '更早未挑战');
+  eq(board[1].short, 'W45', '短格式');
+}
+
+{
+  eq(newAchievements([], [{ key: 'a' }, { key: 'b' }]).length, 2, '空历史全部为新');
+  eq(newAchievements(['a'], [{ key: 'a' }, { key: 'b' }]).map((x) => x.key).join(','), 'b', '过滤已解锁');
+  eq(newAchievements(['a', 'b'], [{ key: 'a' }]).length, 0, '全部已解锁则为空');
+  eq(newAchievements(null, null).length, 0, 'null 安全');
+  eq(newAchievements(['a'], [null, {}, { key: '' }]).length, 0, '脏项忽略');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
