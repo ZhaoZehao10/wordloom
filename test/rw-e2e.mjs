@@ -126,20 +126,24 @@ const walkResult = await evalJs(`(async () => {
   for (const [a, b] of edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
   const waitGlide = async () => { while (st.glide) await new Promise(r => setTimeout(r, 60)); };
   await waitGlide();
-  let cur = st.at, steps = 0;
-  while (cur !== goalIdx && steps < 60) {
-    let best = null, bd = Infinity;
-    for (const v of adj[cur]) {
-      const d = nodes[v].pos.distanceToSquared(nodes[goalIdx].pos);
-      if (d < bd) { bd = d; best = v; }
-    }
-    if (best == null) break;
-    window.__rw.tryWalk(best);
-    await waitGlide();                       // 走一步 = 滑翔一段，等抵达再走下一步
-    if (st.at === cur) break;                // walk 被拒（不应发生）
-    cur = st.at; steps++;
+  // BFS 最短路径：贪心可能绕远导致步数耗尽（测试不稳定），最短路才可复现
+  const prev = new Map([[st.at, null]]);
+  const queue = [st.at];
+  while (queue.length) {
+    const u = queue.shift();
+    if (u === goalIdx) break;
+    for (const v of adj[u]) if (!prev.has(v)) { prev.set(v, u); queue.push(v); }
   }
-  return { reached: cur === goalIdx, steps, collected: st.collected.length, mode: st.mode };
+  const path = [];
+  for (let c = prev.has(goalIdx) ? goalIdx : null; c !== null; c = prev.get(c)) path.unshift(c);
+  let steps = 0;
+  for (let i = 1; i < path.length; i++) {
+    window.__rw.tryWalk(path[i]);
+    await waitGlide();                       // 走一步 = 滑翔一段，等抵达再走下一步
+    steps++;
+  }
+  const cur = st.at;
+  return { reached: cur === goalIdx, steps, collected: st.collected.length, mode: st.mode, pathLen: path.length - 1 };
 })()`);
 await sleep(800);
 ok(walkResult.reached, `贪心走子抵达 1024（${walkResult.steps} 步，收录 ${walkResult.collected} 词）`, JSON.stringify(walkResult));
