@@ -287,3 +287,7 @@ button.ghost:hover { color: var(--text); }
   pointer-events: none;
 }
 #ach-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- 词集提示 ---------- */
+
+.coll-hint { text-align: center; font-size: 12px; color: #ffcf4d; opacity: .85; margin: 0 auto 12px; max-width: 420px; }

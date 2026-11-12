@@ -1,6 +1,6 @@
 {
   "name": "wordloom-vr",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "description": "拾径（Wordloom）— Pico Neo3 WebXR 词图漫游：在词与线的星座间行走，抵达 1024",

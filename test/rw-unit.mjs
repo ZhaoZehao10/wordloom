@@ -37,7 +37,7 @@ import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements, newAchievements,
+  parseAchievements, unlockAchievements, newAchievements, collectionHint,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -974,6 +974,18 @@ section('K. 存档导入导出');
   eq(dirty.data.progress.achievements.join(','), 'ok', '成就脏值过滤');
   eq(dirty.data.progress.daily, null, '非法每日成绩丢弃');
   eq(dirty.data.progress.weeklyHistory.length, 0, '缺 win 的周记录丢弃');
+
+  // 校验和：正常往返通过，篡改被拒，缺校验和（旧档）兼容
+  const signed = exportSave({ best: 123, collection: ['光'], achievements: ['reach'] });
+  const signedObj = JSON.parse(signed);
+  ok(typeof signedObj.checksum === 'string' && signedObj.checksum.length === 8, '导出带 8 位校验和');
+  ok(importSave(signed).ok, '带校验和存档正常导入');
+  signedObj.best = 999;
+  const tampered = importSave(JSON.stringify(signedObj));
+  ok(!tampered.ok && tampered.error.includes('校验'), '篡改内容被校验和拒绝', tampered.error);
+  const noSum = JSON.parse(signed);
+  delete noSum.checksum;
+  ok(importSave(JSON.stringify(noSum)).ok, '无校验和旧存档兼容导入');
 }
 
 section('K. 可访问性对比度');
@@ -1455,6 +1467,20 @@ section('T. 周榜 & 新成就');
   eq(newAchievements(['a', 'b'], [{ key: 'a' }]).length, 0, '全部已解锁则为空');
   eq(newAchievements(null, null).length, 0, 'null 安全');
   eq(newAchievements(['a'], [null, {}, { key: '' }]).length, 0, '脏项忽略');
+}
+
+// ═══════════════════ U. 词集提示 ═══════════════════
+
+section('U. 词集成就提示');
+
+{
+  eq(collectionHint(0, 120), { type: 'collector', remaining: 30 }, '0 词 → 距词集三十 30');
+  eq(collectionHint(29, 120), { type: 'collector', remaining: 1 }, '29 词 → 差 1');
+  eq(collectionHint(30, 120), { type: 'lexicon', remaining: 90 }, '30 词 → 转向词汇全图');
+  eq(collectionHint(119, 120), { type: 'lexicon', remaining: 1 }, '119 词 → 差 1 点亮');
+  eq(collectionHint(120, 120), { type: 'done', remaining: 0 }, '集满 → 完成');
+  eq(collectionHint(NaN, 120), { type: 'collector', remaining: 30 }, 'NaN 按 0');
+  eq(collectionHint(30, NaN).type, 'lexicon', '总数缺失也安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

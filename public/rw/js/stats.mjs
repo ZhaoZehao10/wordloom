@@ -185,3 +185,14 @@ export function newAchievements(prev, list) {
   const set = new Set(Array.isArray(prev) ? prev : []);
   return (Array.isArray(list) ? list : []).filter((a) => a && typeof a.key === 'string' && a.key && !set.has(a.key));
 }
+/**
+ * 词集成就提示：下一步该冲哪个目标。
+ * @returns {{type:'collector'|'lexicon'|'done', remaining:number}}
+ */
+export function collectionHint(collectionSize, total) {
+  const size = Number.isFinite(collectionSize) ? Math.max(0, collectionSize) : 0;
+  const t = Number.isFinite(total) ? Math.max(0, total) : 0;
+  if (t > 0 && size >= t) return { type: 'done', remaining: 0 };
+  if (size < 30) return { type: 'collector', remaining: 30 - size };
+  return { type: 'lexicon', remaining: Math.max(0, t - size) };
+}

@@ -12,6 +12,25 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const WEEK_RE = /^\d{4}-W\d{2}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** FNV-1a 32 位哈希（十六进制），用于存档完整性校验。 */
+function fnv1a(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return ('00000000' + h.toString(16)).slice(-8);
+}
+
+/** 规范化 JSON：对象键排序，保证校验和与键顺序无关。 */
+function canonical(v) {
+  if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
+}
+
 const isDailyLike = (d) => !!d && typeof d === 'object'
   && isStr(d.key) && DAY_RE.test(d.key) && isNum(d.score) && typeof d.win === 'boolean';
 const isWeeklyLike = (d) => !!d && typeof d === 'object'
@@ -50,6 +69,7 @@ export function exportSave(save = {}) {
       weeklyHistory: Array.isArray(weeklyHistory) ? weeklyHistory.filter(isWeeklyLike).slice(0, 26) : [],
     },
   };
+  payload.checksum = fnv1a(canonical(payload));
   return JSON.stringify(payload);
 }
 
@@ -69,6 +89,15 @@ export function importSave(raw) {
   if (d.app !== SAVE_APP) return { ok: false, error: '不是本游戏的存档' };
   if (!isNum(d.version)) return { ok: false, error: '缺少版本号' };
   if (d.version > SAVE_VERSION) return { ok: false, error: `存档版本过新（${d.version} > ${SAVE_VERSION}）` };
+  // 校验和（v2.1 起写入；旧存档没有该字段则跳过，保持兼容）
+  if (d.checksum !== undefined) {
+    if (!isStr(d.checksum)) return { ok: false, error: '校验和格式错误' };
+    const clone = { ...d };
+    delete clone.checksum;
+    if (fnv1a(canonical(clone)) !== d.checksum) {
+      return { ok: false, error: '存档校验失败（内容可能被修改或损坏）' };
+    }
+  }
 
   const best = isNum(d.best) && d.best >= 0 ? d.best : 0;
   const history = Array.isArray(d.history) ? d.history.filter(isValidHistory).slice(0, 60) : [];

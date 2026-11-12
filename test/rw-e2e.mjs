@@ -716,14 +716,16 @@ const bonus = await evalJs(`(async () => {
   const packRows = document.querySelectorAll('#pack-progress .pack-row').length;
   const bars = document.querySelectorAll('#pack-progress .pack-bar i').length;
   const firstWidth = document.querySelector('#pack-progress .pack-bar i')?.style.width || '';
+  const hintText = document.getElementById('coll-hint').textContent;
   window.__rw.debugCloseCollection();
-  return { diff, stepsAfterBonus, maxSteps, statsText, packRows, bars, firstWidth };
+  return { diff, stepsAfterBonus, maxSteps, statsText, packRows, bars, firstWidth, hintText };
 })()`);
 const baseSteps = { easy: 16, normal: 12, hard: 9 }[bonus.diff];
 ok(bonus.stepsAfterBonus === baseSteps + 2 && bonus.maxSteps === baseSteps + 2, `连续 7 天每日挑战 +2 步（${bonus.stepsAfterBonus}/${baseSteps}+2）`);
 ok(bonus.statsText.includes('+2') && bonus.statsText.includes('步数奖励'), `结算页显示步数奖励「${bonus.statsText}」`);
 ok(bonus.packRows === 4 && bonus.bars === 4, `词集面板显示 4 条词包进度（${bonus.packRows}）`);
 ok(/%$/.test(bonus.firstWidth), `进度条有百分比宽度（${bonus.firstWidth}）`);
+ok(bonus.hintText.includes('再收集') || bonus.hintText.includes('全部点亮'), `词集提示「${bonus.hintText}」`);
 
 console.log('\n[23] 成就总览 & 历史最佳');
 const achPanel = await evalJs(`(async () => {
@@ -823,6 +825,10 @@ const weeklyPoster = await evalJs(`(() => {
 })()`);
 ok(weeklyPoster.prefix.startsWith('data:image/png'), '周报是 PNG data URL');
 ok(weeklyPoster.len > 30000, `周报图片有实际内容（${Math.round(weeklyPoster.len / 1024)}KB）`);
+const csv = await evalJs(`window.__rw.debugWeeklyCsv()`);
+const csvLines = csv.trim().split('\n');
+ok(csvLines[0] === 'week,score,win', 'CSV 表头正确');
+ok(csvLines.length === 9, `CSV 共 8 周数据（${csvLines.length - 1} 行）`);
 
 console.log('\n[27] 成就卡 & 冠军成就');
 const cards = await evalJs(`(async () => {

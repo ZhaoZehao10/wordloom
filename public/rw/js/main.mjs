@@ -18,7 +18,7 @@ import { ACHIEVEMENTS } from './data.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements, newAchievements, ACHIEVEMENTS_KEY,
+  parseAchievements, unlockAchievements, newAchievements, collectionHint, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
@@ -267,6 +267,7 @@ window.__rw = {
   debugOpenCollection: () => openCollection(),
   debugOpenMonth: () => openMonth(),
   debugWeeklyPoster: () => buildWeeklyPosterDataURL(),
+  debugWeeklyCsv: () => buildWeeklyCsv(),
   debugAchievementCard: () => buildAchievementCardDataURL(),
   debugOpenAchievements: () => openAchievements(),
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
@@ -1066,6 +1067,14 @@ function openCollection() {
       `<span class="pack-num">${r.got}/${r.total}</span></div>`
     ).join('');
   }
+  // 成就进度提示
+  const hint = collectionHint(state.collection.length, TOTAL_WORDS);
+  const he = $('coll-hint');
+  if (he) {
+    he.textContent = hint.type === 'done'
+      ? `${L('词汇全图')} · ${L('全部点亮')}`
+      : `${L('再收集')} ${hint.remaining} ${L('词')} ${L('解锁')}「${hint.type === 'collector' ? L('词集三十') : L('词汇全图')}」`;
+  }
   $('coll').classList.remove('hidden');
   sfx.ui();
   return {
@@ -1462,6 +1471,26 @@ function downloadWeeklyPoster() {
   } catch { /* 忽略 */ }
 }
 
+/** 周榜 CSV（最近 8 周）。 */
+function buildWeeklyCsv() {
+  const board = weeklyBoard(state.weeklyHistory, weekKey(), 8);
+  const lines = ['week,score,win'];
+  for (const b of board) lines.push(`${b.key},${b.played ? b.score : ''},${b.played ? (b.win ? 1 : 0) : ''}`);
+  return lines.join('\n');
+}
+
+function downloadWeeklyCsv() {
+  try {
+    const blob = new Blob([buildWeeklyCsv()], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `拾径周榜-${weekKey()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    sfx.ui();
+  } catch { /* 忽略 */ }
+}
+
 /** 每日 7 日榜柱状图（canvas 2D）。 */
 function drawDailyChart() {
   const cv = $('daily-chart');
@@ -1507,6 +1536,7 @@ function wire2D() {
   $('ach-export').onclick = () => downloadAchievementCard();
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
   $('week-poster').onclick = () => downloadWeeklyPoster();
+  $('week-csv').onclick = () => downloadWeeklyCsv();
   const chartEl = $('daily-chart');
   if (chartEl) chartEl.onclick = () => openMonth();
   document.querySelectorAll('.diff-pick').forEach((b) => {
