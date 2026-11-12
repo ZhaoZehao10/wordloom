@@ -267,6 +267,7 @@ window.__rw = {
   debugOpenCollection: () => openCollection(),
   debugOpenMonth: () => openMonth(),
   debugWeeklyPoster: () => buildWeeklyPosterDataURL(),
+  debugAchievementCard: () => buildAchievementCardDataURL(),
   debugOpenAchievements: () => openAchievements(),
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
   achievementInfo: () => ({ unlocked: state.unlocked.slice(), total: Object.keys(ACHIEVEMENTS).length }),
@@ -728,6 +729,8 @@ function resultData(win) {
     lexiconTotal: TOTAL_WORDS,
     packsCompleted: PACK_KEYS.filter((k) => WORD_PACKS[k].words.every((w) => state.collection.includes(w))),
     streakBest: dailyStreak(state.dailyHistory, dailyKey()).best,
+    dailyWin: !!state.isDaily && win,
+    weeklyWin: !!state.isWeekly && win,
   });
   return {
     win,
@@ -1091,6 +1094,62 @@ function openAchievements() {
 
 function closeAchievements() { $('ach').classList.add('hidden'); }
 
+/** 生涯成就卡（1080×1350 PNG）：全部成就的解锁一览。 */
+function buildAchievementCardDataURL() {
+  const W = 1080, H = 1350;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#131c3e'); g.addColorStop(1, '#0b1020');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 100; i++) {
+    c.fillStyle = `rgba(200,215,255,${Math.random() * 0.3 + 0.06})`;
+    c.fillRect(Math.random() * W, Math.random() * H, 2, 2);
+  }
+  const entries = Object.entries(ACHIEVEMENTS);
+  const set = new Set(state.unlocked);
+  const got = entries.filter(([k]) => set.has(k)).length;
+  c.textAlign = 'center';
+  c.fillStyle = '#dfe7ff'; c.font = 'bold 58px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('拾径 · 生涯成就', W / 2, 120);
+  c.fillStyle = '#8b96b8'; c.font = '30px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText(`已解锁 ${got} / ${entries.length}`, W / 2, 180);
+  // 进度条
+  const barX = 140, barW = 800, barY = 216;
+  c.fillStyle = 'rgba(140,165,255,0.18)'; c.fillRect(barX, barY, barW, 14);
+  c.fillStyle = '#ffcf4d'; c.fillRect(barX, barY, Math.round((got / entries.length) * barW), 14);
+  // 成就网格（3 列）
+  const cols = 3, cellW = 300, cellH = 150, startX = 90, startY = 290;
+  entries.forEach(([k, a], i) => {
+    const x = startX + (i % cols) * (cellW + 20);
+    const y = startY + Math.floor(i / cols) * cellH;
+    const unlocked = set.has(k);
+    c.fillStyle = unlocked ? 'rgba(255,207,77,0.10)' : 'rgba(20,27,51,0.5)';
+    c.strokeStyle = unlocked ? 'rgba(255,207,77,0.55)' : 'rgba(140,165,255,0.16)';
+    c.lineWidth = 2;
+    c.beginPath(); c.roundRect(x, y, cellW, 118, 14); c.fill(); c.stroke();
+    c.font = '40px "Segoe UI",sans-serif'; c.fillStyle = unlocked ? '#ffcf4d' : '#454f6b';
+    c.fillText(unlocked ? a.icon : '🔒', x + cellW / 2, y + 52);
+    c.font = '24px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.fillStyle = unlocked ? '#dfe7ff' : '#565f7a';
+    c.fillText(L(a.name), x + cellW / 2, y + 94);
+  });
+  c.fillStyle = '#5f6a88'; c.font = '26px "Segoe UI",sans-serif';
+  c.fillText('拾径 Wordloom · 词与线织成的荒原', W / 2, 1260);
+  return cv.toDataURL('image/png');
+}
+
+function downloadAchievementCard() {
+  try {
+    const a = document.createElement('a');
+    a.href = buildAchievementCardDataURL();
+    a.download = `拾径成就卡-${dailyKey()}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    sfx.ui();
+  } catch { /* 忽略 */ }
+}
+
 // ---------------- 新成就提示（2D 飘字 + VR 内面板） ----------------
 
 let achToastTimer = null, vrToast = null, vrToastTimer = null;
@@ -1445,6 +1504,7 @@ function wire2D() {
   $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
   $('ach-open').onclick = () => { openAchievements(); };
   $('ach-close').onclick = () => { sfx.ui(); closeAchievements(); };
+  $('ach-export').onclick = () => downloadAchievementCard();
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
   $('week-poster').onclick = () => downloadWeeklyPoster();
   const chartEl = $('daily-chart');

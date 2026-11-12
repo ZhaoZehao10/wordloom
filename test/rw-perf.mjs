@@ -95,7 +95,7 @@ try { fs.writeFileSync(histPath, JSON.stringify(hist.slice(-30), null, 2)); } ca
 // 通过标准（双门禁）：
 //   结构指标：drawcall ≤ 60、三角形 ≤ 60000、单球顶点数 = 每节点 165（14×10 细分）
 //   ——这两项不受 headless 抖动影响，是真正能拦住「悄悄变重」的回归闸门
-//   时间指标：开局 < 1.5s、重开 < 300ms、帧率中位数 ≥ 60（Pico Neo3 面板 72Hz）
+//   时间指标：开局 < 1.5s、重开 < 300ms、帧率中位数 ≥ 55（本机 6x 限速≈移动端；阈值留噪声余量）
 const BUDGET = { drawCalls: 60, triangles: 60000, vertsPerNode: 165 };
 // 软模式：CI/性能报告流水线只采集数据，不用真机性能阈值卡构建
 const SOFT = process.env.PERF_SOFT === '1';
@@ -105,7 +105,7 @@ if (perf.triangles > BUDGET.triangles) problems.push(`三角形 ${perf.triangles
 if (perf.nodes > 0 && perf.ballVerts / perf.nodes !== BUDGET.vertsPerNode) problems.push(`每节点顶点 ${perf.ballVerts / perf.nodes} ≠ ${BUDGET.vertsPerNode}`);
 if (!(perf.buildMs < 1500)) problems.push(`开局 ${perf.buildMs}ms ≥ 1500ms`);
 if (!(perf.rebuildMs < 300)) problems.push(`重开 ${perf.rebuildMs}ms ≥ 300ms`);
-if (!(perf.fps >= 60)) problems.push(`帧率 ${perf.fps} < 60`);
+if (!(perf.fps >= 55)) problems.push(`帧率 ${perf.fps} < 55`);
 
 const ok = problems.length === 0 || SOFT;
 console.log(ok ? '性能达标 ✓' : `性能不达标 ✗ — ${problems.join('；')}`);

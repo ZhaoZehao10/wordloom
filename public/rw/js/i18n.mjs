@@ -75,6 +75,7 @@ export const EN = {
   '本周已完成': 'Completed this week',
   '最近 8 周': 'Last 8 weeks',
   '导出周报': 'Export weekly report',
+  '导出成就卡': 'Export achievement card',
   '新成就': 'New achievement',
   '已解锁': 'Unlocked',
   '未解锁': 'Locked',

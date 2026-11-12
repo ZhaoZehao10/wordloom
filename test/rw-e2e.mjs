@@ -745,11 +745,11 @@ const achPanel = await evalJs(`(async () => {
   window.__rw.debugCloseMonth();
   return { info0, panel, gotDom, lockedDom, countText, closed, monthText };
 })()`);
-ok(achPanel.info0.total === 13, `成就总数 ${achPanel.info0.total}`);
+ok(achPanel.info0.total === 15, `成就总数 ${achPanel.info0.total}`);
 ok(achPanel.info0.unlocked.length > 0, `已有解锁成就（${achPanel.info0.unlocked.length}）`);
-ok(achPanel.panel.total === 13 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
+ok(achPanel.panel.total === 15 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
 ok(achPanel.gotDom === achPanel.info0.unlocked.length && achPanel.lockedDom > 0, `已解锁/未解锁渲染正确（${achPanel.gotDom}/${achPanel.lockedDom}）`);
-ok(achPanel.countText === `${achPanel.info0.unlocked.length}/13`, `成就计数显示 ${achPanel.countText}`);
+ok(achPanel.countText === `${achPanel.info0.unlocked.length}/15`, `成就计数显示 ${achPanel.countText}`);
 ok(achPanel.closed, '成就面板可关闭');
 ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
 
@@ -824,7 +824,24 @@ const weeklyPoster = await evalJs(`(() => {
 ok(weeklyPoster.prefix.startsWith('data:image/png'), '周报是 PNG data URL');
 ok(weeklyPoster.len > 30000, `周报图片有实际内容（${Math.round(weeklyPoster.len / 1024)}KB）`);
 
-console.log('\n[27] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[27] 成就卡 & 冠军成就');
+const cards = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  const url = window.__rw.debugAchievementCard();
+  // 日冠军：清空后赢一局每日挑战
+  st.unlocked = [];
+  window.__rw.debugStartDaily();
+  await new Promise(r => setTimeout(r, 220));
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 200));
+  const ach = window.__rw.achievementInfo();
+  return { prefix: url.slice(0, 22), len: url.length, hasDailyWin: ach.unlocked.includes('dailyWin') };
+})()`);
+ok(cards.prefix.startsWith('data:image/png'), '成就卡是 PNG data URL');
+ok(cards.len > 30000, `成就卡有实际内容（${Math.round(cards.len / 1024)}KB）`);
+ok(cards.hasDailyWin, '每日挑战获胜解锁「日冠军」');
+
+console.log('\n[28] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

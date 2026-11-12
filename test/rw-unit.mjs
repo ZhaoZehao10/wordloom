@@ -1170,6 +1170,9 @@ section('N. 每日榜图表 & 词包成就');
   eq(names(achievementsFor({ ...base, packsCompleted: ['classic', 'geek'] })), ['经典全集', '极客全集'], '多词包按固定顺序');
   eq(names(achievementsFor({ ...base, packsCompleted: [] })).length, 0, '未集满无词包成就');
   eq(names(achievementsFor({ ...base, packsCompleted: ['nature'] })).length, 1, '自然全集');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, dailyWin: true })), ['抵达 1024', '日冠军'], '每日挑战获胜 → 日冠军');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, weeklyWin: true })), ['抵达 1024', '周冠军'], '每周挑战获胜 → 周冠军');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, dailyWin: true })), [], '未获胜不给冠军成就');
   // 与其它成就叠加
   const combo = names(achievementsFor({ win: true, stepsLeft: 6, wordCount: 3, collectionSize: 60, lexiconTotal: 120, packsCompleted: ['classic'] }));
   ok(combo.includes('抵达 1024') && combo.includes('词集三十') && combo.includes('经典全集'), '词包成就可与单局/元进度叠加', combo.join(','));
