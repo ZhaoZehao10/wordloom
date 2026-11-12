@@ -923,6 +923,57 @@ section('K. 存档导入导出');
 
   const rv = resetValues();
   ok(rv['rw-best'] === '0' && rv['rw-history'] === '[]' && rv['rw-collection'] === '[]', '重置默认值正确');
+  ok(rv['rw-achievements'] === '[]' && rv['rw-daily-history'] === '[]' && rv['rw-weekly-history'] === '[]', '重置包含 v2 进度键');
+}
+
+{
+  // v2：进度随存档往返
+  const text = exportSave({
+    best: 10, history: [], collection: ['光'],
+    achievements: ['reach', 'calm', 'reach'],
+    daily: { key: '2026-11-12', score: 33, win: true, ts: 1 },
+    dailyHistory: [
+      { key: '2026-11-12', score: 33, win: true, ts: 1 },
+      { key: 'bad', score: 1, win: false },
+      { key: '2026-11-11', score: -1, win: false },
+    ],
+    weekly: { key: '2026-W46', score: 88, win: true, ts: 2 },
+    weeklyHistory: [
+      { key: '2026-W46', score: 88, win: true, ts: 2 },
+      { key: '2026-46', score: 1, win: false },
+    ],
+  });
+  const d = JSON.parse(text);
+  eq(d.version, 2, '存档版本 2');
+  eq(d.progress.achievements.length, 2, '成就去重导出');
+  eq(d.progress.dailyHistory.length, 2, '每日历史过滤非法项');
+  eq(d.progress.weeklyHistory.length, 1, '每周历史过滤非法项');
+
+  const r = importSave(text);
+  ok(r.ok, 'v2 存档导入成功');
+  eq(r.data.progress.achievements.join(','), 'reach,calm', '成就导入');
+  eq(r.data.progress.daily.score, 33, '今日成绩导入');
+  eq(r.data.progress.weekly.key, '2026-W46', '本周成绩导入');
+  eq(r.data.progress.dailyHistory.length, 2, '每日历史导入');
+  eq(r.data.progress.weeklyHistory.length, 1, '每周历史导入');
+
+  // v1 旧存档兼容：无 progress 也能导入，progress 为空
+  const v1 = importSave(JSON.stringify({
+    app: SAVE_APP, version: 1, best: 5, history: [], collection: [], settings: {},
+  }));
+  ok(v1.ok, 'v1 旧存档可导入');
+  eq(v1.data.progress.achievements.length, 0, 'v1 无成就不报错');
+  eq(v1.data.progress.daily, null, 'v1 无每日成绩');
+
+  // 脏 progress 被清洗
+  const dirty = importSave(JSON.stringify({
+    app: SAVE_APP, version: 2, best: 0, history: [], collection: [], settings: {},
+    progress: { achievements: ['ok', '', 3], daily: { key: 'bad' }, dailyHistory: 'nope', weekly: null, weeklyHistory: [{ key: '2026-W01', score: 5 }] },
+  }));
+  ok(dirty.ok, '脏 progress 仍可导入');
+  eq(dirty.data.progress.achievements.join(','), 'ok', '成就脏值过滤');
+  eq(dirty.data.progress.daily, null, '非法每日成绩丢弃');
+  eq(dirty.data.progress.weeklyHistory.length, 0, '缺 win 的周记录丢弃');
 }
 
 section('K. 可访问性对比度');

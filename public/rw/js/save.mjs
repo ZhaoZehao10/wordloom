@@ -4,16 +4,24 @@
 // 导入要做严格校验：任何缺字段、类型不对、版本不兼容的输入都必须被拒绝，
 // 并且绝不能把坏数据写进 localStorage。
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const SAVE_APP = 'wordloom-vr';
 
 const isStr = (v) => typeof v === 'string';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const WEEK_RE = /^\d{4}-W\d{2}$/;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const isDailyLike = (d) => !!d && typeof d === 'object'
+  && isStr(d.key) && DAY_RE.test(d.key) && isNum(d.score) && typeof d.win === 'boolean';
+const isWeeklyLike = (d) => !!d && typeof d === 'object'
+  && isStr(d.key) && WEEK_RE.test(d.key) && isNum(d.score) && typeof d.win === 'boolean';
 
 /** 把当前存档整理成可导出的 JSON 字符串（不含任何个人信息）。 */
 export function exportSave(save = {}) {
   const {
     best = 0, history = [], collection = [], diff = 'normal', skin = 'ink', timbre = 'wood', moveMode = 'glide', pack = 'classic',
+    achievements = [], daily = null, dailyHistory = [], weekly = null, weeklyHistory = [],
   } = save;
   const payload = {
     app: SAVE_APP,
@@ -30,6 +38,16 @@ export function exportSave(save = {}) {
       timbre: isStr(timbre) ? timbre : 'wood',
       moveMode: ['glide', 'teleport'].includes(moveMode) ? moveMode : 'glide',
       pack: ['classic', 'poetry', 'geek', 'nature', 'mix'].includes(pack) ? pack : 'classic',
+    },
+    // v2：跨设备恢复也要带上成就与挑战进度
+    progress: {
+      achievements: Array.isArray(achievements)
+        ? [...new Set(achievements.filter((k) => isStr(k) && k.length > 0 && k.length <= 40))].slice(0, 64)
+        : [],
+      daily: isDailyLike(daily) ? { key: daily.key, score: daily.score, win: daily.win, ts: isNum(daily.ts) ? daily.ts : 0 } : null,
+      dailyHistory: Array.isArray(dailyHistory) ? dailyHistory.filter(isDailyLike).slice(0, 30) : [],
+      weekly: isWeeklyLike(weekly) ? { key: weekly.key, score: weekly.score, win: weekly.win, ts: isNum(weekly.ts) ? weekly.ts : 0 } : null,
+      weeklyHistory: Array.isArray(weeklyHistory) ? weeklyHistory.filter(isWeeklyLike).slice(0, 26) : [],
     },
   };
   return JSON.stringify(payload);
@@ -65,7 +83,19 @@ export function importSave(raw) {
     pack: ['classic', 'poetry', 'geek', 'nature', 'mix'].includes(d.settings.pack) ? d.settings.pack : 'classic',
   } : { diff: 'normal', skin: 'ink', timbre: 'wood', moveMode: 'glide', pack: 'classic' };
 
-  return { ok: true, data: { best, history, collection, settings } };
+  // v2 进度：缺省或非法时降级为空（v1 存档可直接导入）
+  const p = (d.progress && typeof d.progress === 'object') ? d.progress : {};
+  const progress = {
+    achievements: Array.isArray(p.achievements)
+      ? [...new Set(p.achievements.filter((k) => isStr(k) && k.length > 0 && k.length <= 40))].slice(0, 64)
+      : [],
+    daily: isDailyLike(p.daily) ? { key: p.daily.key, score: p.daily.score, win: p.daily.win, ts: isNum(p.daily.ts) ? p.daily.ts : 0 } : null,
+    dailyHistory: Array.isArray(p.dailyHistory) ? p.dailyHistory.filter(isDailyLike).slice(0, 30) : [],
+    weekly: isWeeklyLike(p.weekly) ? { key: p.weekly.key, score: p.weekly.score, win: p.weekly.win, ts: isNum(p.weekly.ts) ? p.weekly.ts : 0 } : null,
+    weeklyHistory: Array.isArray(p.weeklyHistory) ? p.weeklyHistory.filter(isWeeklyLike).slice(0, 26) : [],
+  };
+
+  return { ok: true, data: { best, history, collection, settings, progress } };
 }
 
 function isValidHistory(r) {
@@ -82,5 +112,9 @@ export function resetValues() {
     'rw-collection': '[]',
     'rw-diff': 'normal',
     'rw-daily': '',
+    'rw-daily-history': '[]',
+    'rw-weekly': '',
+    'rw-weekly-history': '[]',
+    'rw-achievements': '[]',
   };
 }

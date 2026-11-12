@@ -266,6 +266,7 @@ window.__rw = {
   }),
   debugOpenCollection: () => openCollection(),
   debugOpenMonth: () => openMonth(),
+  debugWeeklyPoster: () => buildWeeklyPosterDataURL(),
   debugOpenAchievements: () => openAchievements(),
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
   achievementInfo: () => ({ unlocked: state.unlocked.slice(), total: Object.keys(ACHIEVEMENTS).length }),
@@ -1155,6 +1156,11 @@ function collectSave() {
     timbre: audio.timbre,
     moveMode: state.moveMode,
     pack: state.pack,
+    achievements: state.unlocked,
+    daily: state.daily,
+    dailyHistory: state.dailyHistory,
+    weekly: state.weekly,
+    weeklyHistory: state.weeklyHistory,
   };
 }
 
@@ -1189,6 +1195,20 @@ function applySave(data) {
   localStorage.setItem('rw-timbre', data.settings.timbre);
   localStorage.setItem('rw-move', state.moveMode);
   localStorage.setItem('rw-pack', state.pack);
+  // v2 进度（旧存档无 progress 时保持现有数据不变）
+  const prog = data.progress;
+  if (prog) {
+    state.unlocked = prog.achievements || [];
+    state.daily = prog.daily || null;
+    state.dailyHistory = prog.dailyHistory || [];
+    state.weekly = prog.weekly || null;
+    state.weeklyHistory = prog.weeklyHistory || [];
+    localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(state.unlocked));
+    localStorage.setItem('rw-daily', state.daily ? JSON.stringify(state.daily) : '');
+    localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(state.dailyHistory));
+    localStorage.setItem('rw-weekly', state.weekly ? JSON.stringify(state.weekly) : '');
+    localStorage.setItem(WEEKLY_HISTORY_KEY, JSON.stringify(state.weeklyHistory));
+  }
   if (SKINS[state.skin]) applySkinLook();
   const skinBtn = $('skin-btn');
   if (skinBtn) skinBtn.textContent = `◍ 皮肤：${(SKINS[state.skin] || SKINS.ink).name}`;
@@ -1221,6 +1241,10 @@ function resetAll(skipConfirm = false) {
   state.history = [];
   state.collection = [];
   state.daily = null;
+  state.dailyHistory = [];
+  state.weekly = null;
+  state.weeklyHistory = [];
+  state.unlocked = [];
   state.pendingDiff = 'normal';
   updateHud();
   return true;
@@ -1322,6 +1346,63 @@ function openMonth() {
 
 function closeMonth() { $('month').classList.add('hidden'); }
 
+/** 每周榜分享海报（1080×1350 PNG）：最近 8 周柱状图 + 摘要。 */
+function buildWeeklyPosterDataURL() {
+  const W = 1080, H = 1350;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#131c3e'); g.addColorStop(1, '#0b1020');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // 星点
+  for (let i = 0; i < 120; i++) {
+    c.fillStyle = `rgba(200,215,255,${Math.random() * 0.35 + 0.08})`;
+    c.fillRect(Math.random() * W, Math.random() * H, 2, 2);
+  }
+  c.textAlign = 'center';
+  c.fillStyle = '#dfe7ff'; c.font = 'bold 64px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('拾径 · 每周挑战', W / 2, 140);
+  c.fillStyle = '#8b96b8'; c.font = '32px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('最近 8 周', W / 2, 200);
+
+  const board = weeklyBoard(state.weeklyHistory, weekKey(), 8).slice().reverse(); // 左旧右新
+  const max = Math.max(10, ...board.map((b) => b.score));
+  const chartX = 100, chartY = 280, chartW = 880, chartH = 620;
+  const gap = 22, bw = (chartW - gap * 7) / 8;
+  board.forEach((b, i) => {
+    const h = Math.max(6, Math.round((b.score / max) * chartH));
+    const x = chartX + i * (bw + gap);
+    c.fillStyle = b.win ? '#ffcf4d' : b.played ? '#6cd0ff' : 'rgba(140,165,255,0.18)';
+    c.fillRect(x, chartY + chartH - h, bw, h);
+    c.fillStyle = '#8b96b8'; c.font = '26px "Segoe UI",sans-serif';
+    c.fillText(b.short, x + bw / 2, chartY + chartH + 44);
+    c.fillStyle = b.played ? '#dfe7ff' : '#4a5470'; c.font = 'bold 28px "Segoe UI",sans-serif';
+    c.fillText(b.played ? String(b.score) : '·', x + bw / 2, chartY + chartH - h - 18);
+  });
+
+  const played = board.filter((b) => b.played).length;
+  const best = Math.max(0, ...board.map((b) => b.score));
+  const total = board.reduce((s, b) => s + b.score, 0);
+  c.fillStyle = '#dfe7ff'; c.font = '40px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText(`已挑战 ${played} 周 · 最佳 ${best} · 总分 ${total}`, W / 2, 1080);
+  c.fillStyle = '#5f6a88'; c.font = '30px "Segoe UI",sans-serif';
+  c.fillText('拾径 Wordloom · 词与线织成的荒原', W / 2, 1180);
+  c.fillStyle = '#3d4663'; c.font = '24px "Segoe UI",sans-serif';
+  c.fillText(new Date().toLocaleDateString('zh-CN'), W / 2, 1240);
+  return cv.toDataURL('image/png');
+}
+
+function downloadWeeklyPoster() {
+  try {
+    const a = document.createElement('a');
+    a.href = buildWeeklyPosterDataURL();
+    a.download = `拾径周报-${weekKey()}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    sfx.ui();
+  } catch { /* 忽略 */ }
+}
+
 /** 每日 7 日榜柱状图（canvas 2D）。 */
 function drawDailyChart() {
   const cv = $('daily-chart');
@@ -1365,6 +1446,7 @@ function wire2D() {
   $('ach-open').onclick = () => { openAchievements(); };
   $('ach-close').onclick = () => { sfx.ui(); closeAchievements(); };
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
+  $('week-poster').onclick = () => downloadWeeklyPoster();
   const chartEl = $('daily-chart');
   if (chartEl) chartEl.onclick = () => openMonth();
   document.querySelectorAll('.diff-pick').forEach((b) => {

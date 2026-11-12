@@ -458,22 +458,24 @@ console.log('\n[15] 存档导出 / 导入 / 重置');
 const save = await evalJs(`(() => {
   const st = window.__rw.state;
   st.best = 777; st.collection = ['光', '熵', '梦']; st.history = [];
+  st.unlocked = ['reach', 'calm'];
   const text = window.__rw.exportSaveText();
   const parsed = JSON.parse(text);
-  st.best = 0; st.collection = [];
+  st.best = 0; st.collection = []; st.unlocked = [];
   const ok1 = window.__rw.importSaveText(text);
-  const restored = { best: st.best, coll: st.collection.length };
+  const restored = { best: st.best, coll: st.collection.length, ach: st.unlocked.length };
   const bad = window.__rw.importSaveText('{"app":"other","version":1}');
   const didReset = window.__rw.resetAll();
   return {
     parsed, ok: ok1.ok, restored, badOk: bad.ok, didReset,
-    afterReset: { best: st.best, coll: st.collection.length },
+    afterReset: { best: st.best, coll: st.collection.length, ach: st.unlocked.length },
   };
 })()`);
-ok(save.parsed.app === 'wordloom-vr' && save.parsed.version === 1, '导出存档格式正确');
-ok(save.ok && save.restored.best === 777 && save.restored.coll === 3, '导入恢复最佳分与词集', JSON.stringify(save.restored));
+ok(save.parsed.app === 'wordloom-vr' && save.parsed.version === 2, '导出存档格式正确（v2）');
+ok(save.parsed.progress && save.parsed.progress.achievements.length === 2, '存档包含成就进度');
+ok(save.ok && save.restored.best === 777 && save.restored.coll === 3 && save.restored.ach === 2, '导入恢复最佳分/词集/成就', JSON.stringify(save.restored));
 ok(save.badOk === false, '其它应用的存档被拒绝');
-ok(save.didReset && save.afterReset.best === 0 && save.afterReset.coll === 0, '重置清空进度');
+ok(save.didReset && save.afterReset.best === 0 && save.afterReset.coll === 0 && save.afterReset.ach === 0, '重置清空进度（含成就）');
 
 console.log('\n[16] 存储脏数据注入（健壮性）');
 await evalJs(`(() => {
@@ -570,7 +572,8 @@ const extras = await evalJs(`(async () => {
   window.__rw.endRound(false);
   await new Promise(r => setTimeout(r, 120));
 
-  // 每日 7 日榜
+  // 每日 7 日榜（先造一条今日记录，避免依赖前面用例的重置状态）
+  window.__rw.debugSetDailyHistory([{ key: window.__rw.dailyInfo().key, score: 7, win: false }]);
   const dh = window.__rw.dailyHistoryInfo();
   const boardDom = document.querySelectorAll('#daily-board .daily-chip').length;
 
@@ -813,7 +816,15 @@ ok(!toast.second.shown, '已解锁的成就不再重复提示');
 ok(toast.weekChips === 8 && toast.weekRows === 8, `月视图显示最近 8 周榜（${toast.weekChips}）`);
 ok(toast.firstWeekPlayed === true, '本周榜第一格标记为已挑战');
 
-console.log('\n[26] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[26] 周报海报');
+const weeklyPoster = await evalJs(`(() => {
+  const url = window.__rw.debugWeeklyPoster();
+  return { prefix: url.slice(0, 22), len: url.length };
+})()`);
+ok(weeklyPoster.prefix.startsWith('data:image/png'), '周报是 PNG data URL');
+ok(weeklyPoster.len > 30000, `周报图片有实际内容（${Math.round(weeklyPoster.len / 1024)}KB）`);
+
+console.log('\n[27] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
