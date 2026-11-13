@@ -867,6 +867,10 @@ ok(statsPanel.closed, '统计面板可关闭');
 const qr = await evalJs(`(() => { const q = window.__rw.debugQr(); const card = window.__rw.debugStatsCard(); return { q, len: card.length, prefix: card.slice(0, 22) }; })()`);
 ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
 ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);
+const shares = await evalJs(`({ stats: window.__rw.debugShareStats(), ach: window.__rw.debugShareAch(), weekly: window.__rw.debugShareWeekly() })`);
+ok(shares.stats.includes('《拾径》') && shares.stats.includes('http'), '统计分享文案含链接');
+ok(shares.ach.includes('/15'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
+ok(shares.weekly.includes('《拾径》') && shares.weekly.includes('http'), '周报分享文案含链接');
 
 console.log('\n[29] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);

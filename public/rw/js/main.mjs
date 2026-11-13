@@ -17,6 +17,7 @@ import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import { ACHIEVEMENTS } from './data.mjs';
 // qrcode 由 vendor/qrcode.js（UMD）提供全局变量
 const qrLib = window.qrcode;
+import { shareStatsText, shareAchievementsText, shareWeeklyText, SITE_URL } from './share.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
@@ -274,6 +275,9 @@ window.__rw = {
   debugOpenAchievements: () => openAchievements(),
   debugOpenStats: () => openStats(),
   debugStatsCard: () => buildStatsCardDataURL(),
+  debugShareStats: () => buildShareStats(),
+  debugShareAch: () => buildShareAch(),
+  debugShareWeekly: () => buildShareWeekly(),
   debugQr: () => { const q = qrLib(0, 'M'); q.addData(SITE_URL); q.make(); return { modules: q.getModuleCount(), dark: q.isDark(0, 0) }; },
   debugCloseStats: () => { closeStats(); return stats.classList.contains('hidden'); },
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
@@ -1130,7 +1134,6 @@ function openStats() {
 function closeStats() { $('stats').classList.add('hidden'); }
 
 /** 在 canvas 上绘制二维码（白底黑块）。返回模块数（失败 0）。 */
-const SITE_URL = 'https://zhaozehao10.github.io/wordloom/rw/';
 function drawQr(c, text, x, y, size) {
   try {
     const qr = qrLib(0, 'M');
@@ -1264,6 +1267,60 @@ function downloadStatsCard() {
     document.body.appendChild(a); a.click(); a.remove();
     sfx.ui();
   } catch { /* 忽略 */ }
+}
+
+// ---------------- 分享文案 ----------------
+
+function buildShareStats() {
+  return shareStatsText(careerStats(state.history));
+}
+
+function buildShareAch() {
+  const names = Object.entries(ACHIEVEMENTS).filter(([k]) => state.unlocked.includes(k)).map(([, a]) => L(a.name));
+  return shareAchievementsText({ unlocked: state.unlocked.length, total: Object.keys(ACHIEVEMENTS).length, names });
+}
+
+function buildShareWeekly() {
+  const board = weeklyBoard(state.weeklyHistory, weekKey(), 8);
+  const played = board.filter((b) => b.played);
+  return shareWeeklyText({
+    weeksPlayed: played.length,
+    best: played.length ? Math.max(...played.map((b) => b.score)) : 0,
+    total: played.reduce((s, b) => s + b.score, 0),
+    currentKey: weekKey(),
+  });
+}
+
+function showToast(text, ms = 2600) {
+  const el = $('ach-toast');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.add('show');
+  clearTimeout(achToastTimer);
+  achToastTimer = setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.classList.add('hidden'), 320);
+  }, ms);
+}
+
+async function copyShare(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    showToast(`📋 ${L('已复制分享文案')}`);
+    return true;
+  } catch {
+    showToast(`📋 ${L('复制失败，请手动选择')}`);
+    return false;
+  }
 }
 
 // ---------------- 新成就提示（2D 飘字 + VR 内面板） ----------------
@@ -1645,10 +1702,13 @@ function wire2D() {
   $('stats-open').onclick = () => { openStats(); };
   $('stats-close').onclick = () => { sfx.ui(); closeStats(); };
   $('stats-export').onclick = () => downloadStatsCard();
+  $('stats-share').onclick = () => copyShare(buildShareStats());
   $('ach-close').onclick = () => { sfx.ui(); closeAchievements(); };
   $('ach-export').onclick = () => downloadAchievementCard();
+  $('ach-share').onclick = () => copyShare(buildShareAch());
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
   $('week-poster').onclick = () => downloadWeeklyPoster();
+  $('week-share').onclick = () => copyShare(buildShareWeekly());
   $('week-csv').onclick = () => downloadWeeklyCsv();
   const chartEl = $('daily-chart');
   if (chartEl) chartEl.onclick = () => openMonth();

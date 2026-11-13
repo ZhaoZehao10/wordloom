@@ -30,6 +30,7 @@ import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
+import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -803,7 +804,7 @@ section('J. 单文件打包静态检查');
   const BUNDLED = [
     'data.mjs', 'i18n.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
     'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs',
-    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'chart.mjs', 'graph.mjs', 'audio.mjs',
+    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'chart.mjs', 'share.mjs', 'graph.mjs', 'audio.mjs',
   ];
   const decls = new Map();   // 名字 → 出现的文件
   const dupes = [];
@@ -1536,6 +1537,27 @@ section('W. 二维码');
   const n2 = q2.getModuleCount();
   for (let r = 0; r < Math.min(n, n2); r++) for (let c = 0; c < Math.min(n, n2); c++) if (q.isDark(r, c) !== q2.isDark(r, c)) diff++;
   ok(diff > 10, `不同内容矩阵不同（${diff} 处差异）`);
+}
+
+// ═══════════════════ X. 分享文案 ═══════════════════
+
+section('X. 分享文案');
+
+{
+  const s = shareStatsText({ total: 10, wins: 6, winRate: 60, best: 88, avgSteps: 9.5 });
+  ok(s.includes('10 局') && s.includes('6 胜') && s.includes('60%') && s.includes('88 分') && s.includes('9.5 步'), '统计文案包含全部数据', s);
+  ok(s.includes('https://zhaozehao10.github.io/wordloom/rw/'), '统计文案带链接');
+  ok(shareStatsText({ total: 0 }).includes('还没走完一局'), '零局文案');
+  ok(shareStatsText(null).includes('《拾径》'), 'null 安全');
+
+  const a = shareAchievementsText({ unlocked: 8, total: 15, names: ['抵达 1024', '词集三十', '日冠军', '多余'] });
+  ok(a.includes('8/15') && a.includes('抵达 1024、词集三十、日冠军'), '成就文案与前三名', a);
+  ok(!a.includes('多余'), '最多列三个成就');
+  ok(shareAchievementsText({ unlocked: 0, total: 15 }).includes('0/15'), '无成就文案');
+
+  const w = shareWeeklyText({ weeksPlayed: 5, best: 70, total: 210, currentKey: '2026-W46' });
+  ok(w.includes('2026-W46') && w.includes('5 周') && w.includes('210 分') && w.includes('70'), '周报文案', w);
+  ok(shareWeeklyText({ weeksPlayed: 0 }).includes('首胜'), '零周文案');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
