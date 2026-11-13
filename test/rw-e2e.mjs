@@ -747,11 +747,11 @@ const achPanel = await evalJs(`(async () => {
   window.__rw.debugCloseMonth();
   return { info0, panel, gotDom, lockedDom, countText, closed, monthText };
 })()`);
-ok(achPanel.info0.total === 15, `成就总数 ${achPanel.info0.total}`);
+ok(achPanel.info0.total === 16, `成就总数 ${achPanel.info0.total}`);
 ok(achPanel.info0.unlocked.length > 0, `已有解锁成就（${achPanel.info0.unlocked.length}）`);
-ok(achPanel.panel.total === 15 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
+ok(achPanel.panel.total === 16 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
 ok(achPanel.gotDom === achPanel.info0.unlocked.length && achPanel.lockedDom > 0, `已解锁/未解锁渲染正确（${achPanel.gotDom}/${achPanel.lockedDom}）`);
-ok(achPanel.countText === `${achPanel.info0.unlocked.length}/15`, `成就计数显示 ${achPanel.countText}`);
+ok(achPanel.countText === `${achPanel.info0.unlocked.length}/16`, `成就计数显示 ${achPanel.countText}`);
 ok(achPanel.closed, '成就面板可关闭');
 ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
 
@@ -809,14 +809,16 @@ const toast = await evalJs(`(async () => {
   const month = window.__rw.debugOpenMonth();
   const weekChips = document.querySelectorAll('#week-board .week-chip').length;
   const firstWeekPlayed = document.querySelector('#week-board .week-chip')?.classList.contains('played');
+  const monthText = document.getElementById('month-summary').textContent;
   window.__rw.debugCloseMonth();
-  return { first, second, weekChips, firstWeekPlayed, weekRows: month.weekRows };
+  return { first, second, weekChips, firstWeekPlayed, weekRows: month.weekRows, monthText, hist: st.weeklyHistory.length };
 })()`);
 ok(toast.first.shown && toast.first.text.includes('新成就'), `首次解锁显示飘字「${toast.first.text}」`);
 ok(toast.first.text.includes('抵达 1024'), '飘字包含成就名称');
 ok(!toast.second.shown, '已解锁的成就不再重复提示');
 ok(toast.weekChips === 8 && toast.weekRows === 8, `月视图显示最近 8 周榜（${toast.weekChips}）`);
 ok(toast.firstWeekPlayed === true, '本周榜第一格标记为已挑战');
+ok(toast.monthText.includes('周最佳'), `月视图显示周最佳「${toast.monthText}」`);
 
 console.log('\n[26] 周报海报');
 const weeklyPoster = await evalJs(`(() => {
@@ -861,7 +863,7 @@ const statsPanel = await evalJs(`(() => {
   return { s, items, text, closed };
 })()`);
 ok(statsPanel.s.total === 2 && statsPanel.s.winRate === 50 && statsPanel.s.best === 30, '统计数值正确', JSON.stringify(statsPanel.s));
-ok(statsPanel.items === 9, `统计面板 9 项（${statsPanel.items}）`);
+ok(statsPanel.items === 10, `统计面板 10 项（${statsPanel.items}）`);
 ok(statsPanel.text.includes('50%') && statsPanel.text.includes('30'), '面板显示胜率与最佳');
 ok(statsPanel.closed, '统计面板可关闭');
 const qr = await evalJs(`(() => { const q = window.__rw.debugQr(); const card = window.__rw.debugStatsCard(); return { q, len: card.length, prefix: card.slice(0, 22) }; })()`);
@@ -869,7 +871,7 @@ ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
 ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);
 const shares = await evalJs(`({ stats: window.__rw.debugShareStats(), ach: window.__rw.debugShareAch(), weekly: window.__rw.debugShareWeekly() })`);
 ok(shares.stats.includes('《拾径》') && shares.stats.includes('http'), '统计分享文案含链接');
-ok(shares.ach.includes('/15'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
+ok(shares.ach.includes('/16'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
 ok(shares.weekly.includes('《拾径》') && shares.weekly.includes('http'), '周报分享文案含链接');
 
 console.log('\n[29] 渲染帧检查（drawcall + 游戏中截图）');

@@ -25,7 +25,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -1121,6 +1121,7 @@ function openStats() {
   const rows = [
     [L('总局数'), s.total], [L('胜场'), s.wins], [L('胜率'), `${s.winRate}%`], [L('最佳'), s.best],
     [L('平均步数'), s.avgSteps], [L('累计收录'), s.totalWords],
+    [L('连续打卡'), (() => { const st = dailyStreak(state.dailyHistory, dailyKey()); return `${st.current}/${st.best}`; })()],
     [L('悠然'), `${s.byDiff.easy.wins}/${s.byDiff.easy.played}`],
     [L('标准'), `${s.byDiff.normal.wins}/${s.byDiff.normal.played}`],
     [L('困难'), `${s.byDiff.hard.wins}/${s.byDiff.hard.played}`],
@@ -1541,7 +1542,8 @@ function openMonth() {
   const sum = monthSummary(state.dailyHistory, {});
   $('month-title').textContent = `${L('每日挑战')} · ${g.year}-${String(g.month).padStart(2, '0')}`;
   const best = dailyBest(state.dailyHistory);
-  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}` + (best.score > 0 ? ` · ${L('历史最佳')} ${best.score}` : '');
+  const wBest = weeklyBest(state.weeklyHistory);
+  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}` + (best.score > 0 ? ` · ${L('历史最佳')} ${best.score}` : '') + (wBest.score > 0 || state.weeklyHistory.length > 0 ? ` · ${L('周最佳')} ${wBest.score}` : '');
   const grid = $('month-grid');
   grid.innerHTML = '';
   const zh = ['日', '一', '二', '三', '四', '五', '六'];

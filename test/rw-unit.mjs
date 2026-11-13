@@ -24,7 +24,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -1287,7 +1287,10 @@ section('P. 连续打卡');
   const names = (l) => l.map((a) => a.name);
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 7 })), ['七日不辍'], '连续 7 天 → 七日不辍');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 6 })), [], '连续 6 天不达成（边界）');
-  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 30 })), ['七日不辍'], '更长连续仍只解锁一次');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 7 })), ['七日不辍'], '连续 7 天 → 七日不辍');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 30 })), ['七日不辍', '月满勤'], '连续 30 天 → 月满勤（含七日）');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 29 })), ['七日不辍'], '连续 29 天不到月满勤');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, streakBest: 30 })), ['七日不辍', '月满勤'], '30 天解锁月满勤');
 }
 
 // ═══════════════════ Q. 打卡奖励 / 词包进度 / 性能报告 ═══════════════════
@@ -1374,6 +1377,10 @@ section('R. 成就持久化 & 历史最佳');
   eq(dailyBest([{ key: 'a', score: 20 }, { key: 'b', score: 20 }]), { score: 20, key: 'a' }, '同分取先出现');
   eq(dailyBest([{ key: 'a', score: NaN }, { key: 'b', score: -5 }]), { score: 0, key: null }, '脏值忽略');
   eq(dailyBest(null).score, 0, 'null 安全');
+
+  eq(weeklyBest([]), { score: 0, key: null }, '空周历史最佳 0');
+  eq(weeklyBest([{ key: '2026-W45', score: 20 }, { key: '2026-W46', score: 60 }, { key: '2026-W44', score: 10 }]), { score: 60, key: '2026-W46' }, '周历史最佳');
+  eq(weeklyBest([{ key: 'a', score: NaN }]).score, 0, '周历史脏值忽略');
 }
 
 // ═══════════════════ S. 每周挑战 / 海报生涯 / 报告对比 ═══════════════════

@@ -320,3 +320,12 @@ export function weeklyBoard(history, currentKey, weeks = 8) {
   }
   return out;
 }
+/** 每周挑战历史最佳：{ score, key }。 */
+export function weeklyBest(history) {
+  let best = { score: 0, key: null };
+  for (const d of Array.isArray(history) ? history : []) {
+    if (!d || !Number.isFinite(d.score)) continue;
+    if (d.score > best.score) best = { score: d.score, key: typeof d.key === 'string' ? d.key : null };
+  }
+  return best;
+}

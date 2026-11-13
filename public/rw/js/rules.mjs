@@ -63,6 +63,7 @@ export function achievementsFor({
   }
   // —— 连续打卡成就 ——
   if (Number.isFinite(streakBest) && streakBest >= 7) add('streak7');
+  if (Number.isFinite(streakBest) && streakBest >= 30) add('streak30');
   if (win && dailyWin) add('dailyWin');
   if (win && weeklyWin) add('weekWin');
   return out;

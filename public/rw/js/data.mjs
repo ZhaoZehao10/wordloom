@@ -89,6 +89,7 @@ export const ACHIEVEMENTS = {
   packGeek:    { icon: '💾', name: '极客全集' }, // 极客词包集满
   packNature:  { icon: '🌿', name: '自然全集' }, // 自然词包集满
   streak7:     { icon: '🔥', name: '七日不辍' }, // 每日挑战连续 7 天
+  streak30:    { icon: '🗓', name: '月满勤' },   // 每日挑战连续 30 天
   dailyWin:    { icon: '☀️', name: '日冠军' },   // 赢下一局每日挑战
   weekWin:     { icon: '🏆', name: '周冠军' },   // 赢下一局每周挑战
 };

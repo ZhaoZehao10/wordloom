@@ -76,6 +76,8 @@ export const EN = {
   '平均步数': 'Avg steps',
   '累计收录': 'Words collected',
   '历史最佳': 'All-time best',
+  '周最佳': 'Best week',
+  '连续打卡': 'Streak (cur/best)',
   '🗓 每周挑战': '🗓 Weekly challenge',
   '每周挑战': 'Weekly challenge',
   '本周未完成': 'Not played this week',
