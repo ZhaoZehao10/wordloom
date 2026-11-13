@@ -291,3 +291,14 @@ button.ghost:hover { color: var(--text); }
 /* ---------- 词集提示 ---------- */
 
 .coll-hint { text-align: center; font-size: 12px; color: #ffcf4d; opacity: .85; margin: 0 auto 12px; max-width: 420px; }
+
+/* ---------- 生涯统计 ---------- */
+
+#stats { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  z-index: 32; background: radial-gradient(1100px 640px at 50% 32%, #131c3e 0%, #0b1020 70%); padding: 18px; }
+#stats.hidden { display: none !important; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px auto 16px; max-width: 480px; }
+.stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px;
+  border-radius: 10px; border: 1px solid rgba(140,165,255,0.16); background: rgba(20,27,51,0.35); }
+.stat-item span { font-size: 11px; color: #8b96b8; }
+.stat-item b { font-size: 18px; color: #dfe7ff; }

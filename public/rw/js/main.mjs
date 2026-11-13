@@ -18,7 +18,7 @@ import { ACHIEVEMENTS } from './data.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements, newAchievements, collectionHint, ACHIEVEMENTS_KEY,
+  parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
@@ -270,6 +270,8 @@ window.__rw = {
   debugWeeklyCsv: () => buildWeeklyCsv(),
   debugAchievementCard: () => buildAchievementCardDataURL(),
   debugOpenAchievements: () => openAchievements(),
+  debugOpenStats: () => openStats(),
+  debugCloseStats: () => { closeStats(); return stats.classList.contains('hidden'); },
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
   achievementInfo: () => ({ unlocked: state.unlocked.slice(), total: Object.keys(ACHIEVEMENTS).length }),
   debugCloseMonth: () => { closeMonth(); return month.classList.contains('hidden'); },
@@ -1103,6 +1105,26 @@ function openAchievements() {
 
 function closeAchievements() { $('ach').classList.add('hidden'); }
 
+/** 生涯统计面板。 */
+function openStats() {
+  const s = careerStats(state.history);
+  const grid = $('stats-grid');
+  if (!grid) return s;
+  const rows = [
+    [L('总局数'), s.total], [L('胜场'), s.wins], [L('胜率'), `${s.winRate}%`], [L('最佳'), s.best],
+    [L('平均步数'), s.avgSteps], [L('累计收录'), s.totalWords],
+    [L('悠然'), `${s.byDiff.easy.wins}/${s.byDiff.easy.played}`],
+    [L('标准'), `${s.byDiff.normal.wins}/${s.byDiff.normal.played}`],
+    [L('困难'), `${s.byDiff.hard.wins}/${s.byDiff.hard.played}`],
+  ];
+  grid.innerHTML = rows.map(([k, v]) => `<div class="stat-item"><span>${k}</span><b>${v}</b></div>`).join('');
+  $('stats').classList.remove('hidden');
+  sfx.ui();
+  return s;
+}
+
+function closeStats() { $('stats').classList.add('hidden'); }
+
 /** 生涯成就卡（1080×1350 PNG）：全部成就的解锁一览。 */
 function buildAchievementCardDataURL() {
   const W = 1080, H = 1350;
@@ -1532,6 +1554,8 @@ function wire2D() {
   $('coll-open').onclick = () => { openCollection(); };
   $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
   $('ach-open').onclick = () => { openAchievements(); };
+  $('stats-open').onclick = () => { openStats(); };
+  $('stats-close').onclick = () => { sfx.ui(); closeStats(); };
   $('ach-close').onclick = () => { sfx.ui(); closeAchievements(); };
   $('ach-export').onclick = () => downloadAchievementCard();
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };

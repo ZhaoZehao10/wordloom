@@ -196,3 +196,28 @@ export function collectionHint(collectionSize, total) {
   if (size < 30) return { type: 'collector', remaining: 30 - size };
   return { type: 'lexicon', remaining: Math.max(0, t - size) };
 }
+/**
+ * 生涯统计：总局数、胜场、胜率、最佳、平均步数、分难度、总收录词次。
+ */
+export function careerStats(history) {
+  const list = (Array.isArray(history) ? history : []).filter((r) => r && typeof r === 'object' && Number.isFinite(r.score));
+  const total = list.length;
+  const wins = list.filter((r) => r.win === true).length;
+  const best = total ? Math.max(...list.map((r) => (Number.isFinite(r.score) ? r.score : 0))) : 0;
+  const sumSteps = list.reduce((s, r) => s + (Number.isFinite(r.steps) ? r.steps : 0), 0);
+  const totalWords = list.reduce((s, r) => s + (Number.isFinite(r.words) ? r.words : 0), 0);
+  const byDiff = {};
+  for (const k of ['easy', 'normal', 'hard']) {
+    const rows = list.filter((r) => r.diff === k);
+    byDiff[k] = { played: rows.length, wins: rows.filter((r) => r.win === true).length };
+  }
+  return {
+    total,
+    wins,
+    winRate: total ? Math.round((wins / total) * 100) : 0,
+    best,
+    avgSteps: total ? Math.round((sumSteps / total) * 10) / 10 : 0,
+    totalWords,
+    byDiff,
+  };
+}

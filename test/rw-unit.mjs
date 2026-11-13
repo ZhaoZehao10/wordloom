@@ -37,7 +37,7 @@ import {
   makeRecord, appendRecord, summarize, isValidRecord, parseHistory, serializeHistory,
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements, newAchievements, collectionHint,
+  parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1481,6 +1481,37 @@ section('U. 词集成就提示');
   eq(collectionHint(120, 120), { type: 'done', remaining: 0 }, '集满 → 完成');
   eq(collectionHint(NaN, 120), { type: 'collector', remaining: 30 }, 'NaN 按 0');
   eq(collectionHint(30, NaN).type, 'lexicon', '总数缺失也安全');
+}
+
+// ═══════════════════ V. 生涯统计 ═══════════════════
+
+section('V. 生涯统计');
+
+{
+  const empty = careerStats([]);
+  eq(empty.total, 0, '空历史总局数 0');
+  eq(empty.winRate, 0, '空历史胜率 0');
+  eq(empty.avgSteps, 0, '空历史平均步数 0');
+  eq(empty.best, 0, '空历史最佳 0');
+
+  const s = careerStats([
+    { win: true, score: 30, steps: 8, words: 5, diff: 'easy' },
+    { win: false, score: 10, steps: 12, words: 3, diff: 'hard' },
+    { win: true, score: 50, steps: 10, words: 7, diff: 'easy' },
+  ]);
+  eq(s.total, 3, '总局数');
+  eq(s.wins, 2, '胜场');
+  eq(s.winRate, 67, '胜率四舍五入');
+  eq(s.best, 50, '最佳分');
+  eq(s.avgSteps, 10, '平均步数');
+  eq(s.totalWords, 15, '累计收录词次');
+  eq(s.byDiff.easy, { played: 2, wins: 2 }, '悠然战绩');
+  eq(s.byDiff.hard, { played: 1, wins: 0 }, '紧绷战绩');
+  eq(s.byDiff.normal, { played: 0, wins: 0 }, '标准无记录');
+
+  const dirty = careerStats([{ win: true }, null, { score: NaN }, { win: false, score: 5, steps: NaN, words: NaN, diff: 'x' }]);
+  eq(dirty.total, 1, '脏记录被过滤');
+  eq(dirty.avgSteps, 0, '非法步数不计入');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

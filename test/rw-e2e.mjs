@@ -847,7 +847,25 @@ ok(cards.prefix.startsWith('data:image/png'), '成就卡是 PNG data URL');
 ok(cards.len > 30000, `成就卡有实际内容（${Math.round(cards.len / 1024)}KB）`);
 ok(cards.hasDailyWin, '每日挑战获胜解锁「日冠军」');
 
-console.log('\n[28] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[28] 生涯统计面板');
+const statsPanel = await evalJs(`(() => {
+  const st = window.__rw.state;
+  st.history = [
+    { win: true, score: 30, steps: 8, words: 5, diff: 'easy', ts: 1 },
+    { win: false, score: 10, steps: 12, words: 3, diff: 'hard', ts: 2 },
+  ];
+  const s = window.__rw.debugOpenStats();
+  const items = document.querySelectorAll('#stats-grid .stat-item').length;
+  const text = document.getElementById('stats-grid').textContent;
+  const closed = window.__rw.debugCloseStats();
+  return { s, items, text, closed };
+})()`);
+ok(statsPanel.s.total === 2 && statsPanel.s.winRate === 50 && statsPanel.s.best === 30, '统计数值正确', JSON.stringify(statsPanel.s));
+ok(statsPanel.items === 9, `统计面板 9 项（${statsPanel.items}）`);
+ok(statsPanel.text.includes('50%') && statsPanel.text.includes('30'), '面板显示胜率与最佳');
+ok(statsPanel.closed, '统计面板可关闭');
+
+console.log('\n[29] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
