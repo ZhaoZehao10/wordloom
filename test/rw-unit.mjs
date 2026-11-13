@@ -29,6 +29,7 @@ import {
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
+import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -1512,6 +1513,29 @@ section('V. 生涯统计');
   const dirty = careerStats([{ win: true }, null, { score: NaN }, { win: false, score: 5, steps: NaN, words: NaN, diff: 'x' }]);
   eq(dirty.total, 1, '脏记录被过滤');
   eq(dirty.avgSteps, 0, '非法步数不计入');
+}
+
+// ═══════════════════ W. 二维码 ═══════════════════
+
+section('W. 二维码');
+
+{
+  const q = qrcode(0, 'M');
+  q.addData('https://zhaozehao10.github.io/wordloom/rw/');
+  q.make();
+  const n = q.getModuleCount();
+  ok(n >= 21 && n <= 57, `二维码模块数合理（${n}）`);
+  ok(typeof q.isDark(0, 0) === 'boolean', 'isDark 返回布尔');
+  // 三个定位图案的角落应为深色
+  ok(q.isDark(0, 0) && q.isDark(0, n - 1) && q.isDark(n - 1, 0), '三处定位角为深色');
+  // 不同内容生成不同矩阵
+  const q2 = qrcode(0, 'M');
+  q2.addData('https://example.com/other');
+  q2.make();
+  let diff = 0;
+  const n2 = q2.getModuleCount();
+  for (let r = 0; r < Math.min(n, n2); r++) for (let c = 0; c < Math.min(n, n2); c++) if (q.isDark(r, c) !== q2.isDark(r, c)) diff++;
+  ok(diff > 10, `不同内容矩阵不同（${diff} 处差异）`);
 }
 
 // ═══════════════════ 汇总 ═══════════════════

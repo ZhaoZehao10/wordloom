@@ -81,6 +81,10 @@ ok(boot.fileProtocol, 'file:// 协议');
 ok(boot.title.includes('拾径'), '标题正确');
 ok(boot.THREE, 'THREE 全局可用（内联成功）');
 ok(boot.hook, '游戏钩子可用');
+if (!boot.hook) {
+  console.log('控制台错误:');
+  consoleErrors.slice(0, 10).forEach((e) => console.log('  · ' + e.slice(0, 300)));
+}
 
 console.log('\n[2] 开局 + 走子 + 结算');
 const play = await evalJs(`(async () => {

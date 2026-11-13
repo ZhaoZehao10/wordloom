@@ -83,6 +83,7 @@ export const EN = {
   '最近 8 周': 'Last 8 weeks',
   '导出周报': 'Export weekly report',
   '导出成就卡': 'Export achievement card',
+  '导出统计卡': 'Export stats card',
   '导出 CSV': 'Export CSV',
   '再收集': 'Collect',
   '解锁': 'to unlock',

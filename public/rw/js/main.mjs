@@ -15,6 +15,8 @@ import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYa
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import { ACHIEVEMENTS } from './data.mjs';
+// qrcode 由 vendor/qrcode.js（UMD）提供全局变量
+const qrLib = window.qrcode;
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
@@ -271,6 +273,8 @@ window.__rw = {
   debugAchievementCard: () => buildAchievementCardDataURL(),
   debugOpenAchievements: () => openAchievements(),
   debugOpenStats: () => openStats(),
+  debugStatsCard: () => buildStatsCardDataURL(),
+  debugQr: () => { const q = qrLib(0, 'M'); q.addData(SITE_URL); q.make(); return { modules: q.getModuleCount(), dark: q.isDark(0, 0) }; },
   debugCloseStats: () => { closeStats(); return stats.classList.contains('hidden'); },
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
   achievementInfo: () => ({ unlocked: state.unlocked.slice(), total: Object.keys(ACHIEVEMENTS).length }),
@@ -1125,6 +1129,27 @@ function openStats() {
 
 function closeStats() { $('stats').classList.add('hidden'); }
 
+/** 在 canvas 上绘制二维码（白底黑块）。返回模块数（失败 0）。 */
+const SITE_URL = 'https://zhaozehao10.github.io/wordloom/rw/';
+function drawQr(c, text, x, y, size) {
+  try {
+    const qr = qrLib(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const n = qr.getModuleCount();
+    const cell = size / n;
+    c.fillStyle = '#ffffff';
+    c.fillRect(x - 8, y - 8, size + 16, size + 16);
+    c.fillStyle = '#0b1020';
+    for (let r = 0; r < n; r++) {
+      for (let col = 0; col < n; col++) {
+        if (qr.isDark(r, col)) c.fillRect(x + col * cell, y + r * cell, Math.ceil(cell), Math.ceil(cell));
+      }
+    }
+    return n;
+  } catch { return 0; }
+}
+
 /** 生涯成就卡（1080×1350 PNG）：全部成就的解锁一览。 */
 function buildAchievementCardDataURL() {
   const W = 1080, H = 1350;
@@ -1167,6 +1192,9 @@ function buildAchievementCardDataURL() {
     c.fillText(L(a.name), x + cellW / 2, y + 94);
   });
   c.fillStyle = '#5f6a88'; c.font = '26px "Segoe UI",sans-serif';
+  drawQr(c, SITE_URL, W - 210, H - 280, 150);
+  c.fillStyle = '#5f6a88'; c.font = '22px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('扫码在线玩', W - 135, H - 100);
   c.fillText('拾径 Wordloom · 词与线织成的荒原', W / 2, 1260);
   return cv.toDataURL('image/png');
 }
@@ -1176,6 +1204,63 @@ function downloadAchievementCard() {
     const a = document.createElement('a');
     a.href = buildAchievementCardDataURL();
     a.download = `拾径成就卡-${dailyKey()}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    sfx.ui();
+  } catch { /* 忽略 */ }
+}
+
+/** 生涯统计卡（1080×1350 PNG）：核心数据 + 二维码。 */
+function buildStatsCardDataURL() {
+  const W = 1080, H = 1350;
+  const s = careerStats(state.history);
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#131c3e'); g.addColorStop(1, '#0b1020');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 90; i++) {
+    c.fillStyle = `rgba(200,215,255,${Math.random() * 0.3 + 0.06})`;
+    c.fillRect(Math.random() * W, Math.random() * H, 2, 2);
+  }
+  c.textAlign = 'center';
+  c.fillStyle = '#dfe7ff'; c.font = 'bold 58px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('拾径 · 生涯统计', W / 2, 130);
+  const cells = [
+    [L('总局数'), s.total], [L('胜场'), s.wins], [L('胜率'), `${s.winRate}%`],
+    [L('最佳'), s.best], [L('平均步数'), s.avgSteps], [L('累计收录'), s.totalWords],
+  ];
+  cells.forEach(([k, v], i) => {
+    const x = 90 + (i % 3) * 310, y = 230 + Math.floor(i / 3) * 190;
+    c.fillStyle = 'rgba(20,27,51,0.55)'; c.strokeStyle = 'rgba(140,165,255,0.18)'; c.lineWidth = 2;
+    c.beginPath(); c.roundRect(x, y, 280, 150, 16); c.fill(); c.stroke();
+    c.fillStyle = '#8b96b8'; c.font = '26px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.fillText(k, x + 140, y + 48);
+    c.fillStyle = '#dfe7ff'; c.font = 'bold 52px "Segoe UI",sans-serif';
+    c.fillText(String(v), x + 140, y + 116);
+  });
+  c.textAlign = 'left'; c.font = '30px "PingFang SC","Microsoft YaHei",sans-serif';
+  const diffs = [[L('悠然'), s.byDiff.easy], [L('标准'), s.byDiff.normal], [L('紧绷'), s.byDiff.hard]];
+  diffs.forEach(([name, d], i) => {
+    c.fillStyle = '#8b96b8';
+    c.fillText(`${name}`, 150, 680 + i * 70);
+    c.fillStyle = '#dfe7ff';
+    c.fillText(`${d.wins} / ${d.played}`, 330, 680 + i * 70);
+  });
+  c.textAlign = 'center';
+  drawQr(c, SITE_URL, W - 210, H - 300, 150);
+  c.fillStyle = '#5f6a88'; c.font = '22px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('扫码在线玩', W - 135, H - 120);
+  c.font = '26px "Segoe UI",sans-serif';
+  c.fillText('拾径 Wordloom · 词与线织成的荒原', W / 2, 1240);
+  return cv.toDataURL('image/png');
+}
+
+function downloadStatsCard() {
+  try {
+    const a = document.createElement('a');
+    a.href = buildStatsCardDataURL();
+    a.download = `拾径统计-${dailyKey()}.png`;
     document.body.appendChild(a); a.click(); a.remove();
     sfx.ui();
   } catch { /* 忽略 */ }
@@ -1477,6 +1562,9 @@ function buildWeeklyPosterDataURL() {
   c.fillStyle = '#dfe7ff'; c.font = '40px "PingFang SC","Microsoft YaHei",sans-serif';
   c.fillText(`已挑战 ${played} 周 · 最佳 ${best} · 总分 ${total}`, W / 2, 1080);
   c.fillStyle = '#5f6a88'; c.font = '30px "Segoe UI",sans-serif';
+  drawQr(c, SITE_URL, W - 210, H - 320, 150);
+  c.fillStyle = '#5f6a88'; c.font = '22px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('扫码在线玩', W - 135, H - 140);
   c.fillText('拾径 Wordloom · 词与线织成的荒原', W / 2, 1180);
   c.fillStyle = '#3d4663'; c.font = '24px "Segoe UI",sans-serif';
   c.fillText(new Date().toLocaleDateString('zh-CN'), W / 2, 1240);
@@ -1556,6 +1644,7 @@ function wire2D() {
   $('ach-open').onclick = () => { openAchievements(); };
   $('stats-open').onclick = () => { openStats(); };
   $('stats-close').onclick = () => { sfx.ui(); closeStats(); };
+  $('stats-export').onclick = () => downloadStatsCard();
   $('ach-close').onclick = () => { sfx.ui(); closeAchievements(); };
   $('ach-export').onclick = () => downloadAchievementCard();
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };

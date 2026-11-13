@@ -43,6 +43,7 @@ function stripModule(src) {
 
 // VRButton.js：非 min 的 ESM，剥掉 export 后类定义留在全局作用域
 const vrButtonSrc = stripModule(read(PUB, 'vendor', 'VRButton.js'));
+const qrcodeSrc = read(PUB, 'rw', 'vendor', 'qrcode.js'); // UMD，定义全局 qrcode
 
 const gameSrc = [
   ['data', 'rw/js/data.mjs'],
@@ -73,10 +74,13 @@ let html = read(PUB, 'rw', 'index.html');
 const css = read(PUB, 'rw', 'rw.css');
 html = html.replace('<link rel="stylesheet" href="rw.css">', `<style>\n${css}\n</style>`);
 // 模块脚本 → 普通脚本（three 全局 + VRButton + 游戏代码依序）
+const qrDataUrl = 'data:text/javascript;base64,' + Buffer.from(qrcodeSrc, 'utf8').toString('base64');
+html = html.replace('<script src="vendor/qrcode.js"></script>', `<script src="${qrDataUrl}"></script>`);
 html = html.replace('<script type="module" src="js/main.mjs"></script>',
   `<script>\n${threeScript}\n</script>\n<script>\n${vrButtonSrc}\n</script>\n<script>\n${gameSrc}\n</script>`);
-// 离线提示与 VR 引导差异说明
-html = html.replace('</body>', `<div style="position:fixed;bottom:8px;left:0;right:0;text-align:center;z-index:9;opacity:.6;font-size:12px">单文件离线版 · 若无 ENTER VR 按钮请改用 APK 版（README）</div></body>`);
+// 离线提示与 VR 引导差异说明（只替换文档末尾的 </body></html>，避免命中脚本内字符串）
+html = html.replace(/<\/body>\s*<\/html>\s*$/,
+  `<div style="position:fixed;bottom:8px;left:0;right:0;text-align:center;z-index:9;opacity:.6;font-size:12px">单文件离线版 · 若无 ENTER VR 按钮请改用 APK 版（README）</div></body></html>`);
 
 fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
 const out = path.join(ROOT, 'dist', '拾径-离线版.html');

@@ -864,6 +864,9 @@ ok(statsPanel.s.total === 2 && statsPanel.s.winRate === 50 && statsPanel.s.best 
 ok(statsPanel.items === 9, `统计面板 9 项（${statsPanel.items}）`);
 ok(statsPanel.text.includes('50%') && statsPanel.text.includes('30'), '面板显示胜率与最佳');
 ok(statsPanel.closed, '统计面板可关闭');
+const qr = await evalJs(`(() => { const q = window.__rw.debugQr(); const card = window.__rw.debugStatsCard(); return { q, len: card.length, prefix: card.slice(0, 22) }; })()`);
+ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
+ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);
 
 console.log('\n[29] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
