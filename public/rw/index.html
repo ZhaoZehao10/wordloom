@@ -32,6 +32,7 @@
       <button id="start-btn" class="primary" data-i18n="开始游走 ▸">开始游走 ▸</button>
       <button id="daily-btn" class="ghost" data-i18n="📅 每日挑战">📅 每日挑战</button>
       <button id="weekly-btn" class="ghost" data-i18n="🗓 每周挑战">🗓 每周挑战</button>
+      <button id="timed-btn" class="ghost" data-i18n="⏱ 限时">⏱ 限时</button>
     </div>
     <div class="row small-row">
       <span id="daily-status" class="mini-label" data-i18n="今日未完成">今日未完成</span>
@@ -79,6 +80,7 @@
 <!-- HUD（进入 VR 后 2D HUD 隐藏，由 VR 内 3D 面板接管） -->
 <div id="hud" class="hidden">
   <div class="hud-chip"><span data-i18n="步数">步数</span> <b id="hud-steps">12</b></div>
+  <div class="hud-chip" id="hud-timer-chip" style="display:none"><span data-i18n="剩余">剩余</span> <b id="hud-timer">--</b></div>
   <div class="hud-chip"><span data-i18n="收录">收录</span> <b id="hud-words2">0</b></div>
   <div class="hud-chip"><b id="hud-score2">0</b> <span data-i18n="分">分</span> · <span data-i18n="最佳">最佳</span> <b id="hud-best2">0</b></div>
 </div>

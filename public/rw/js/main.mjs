@@ -18,6 +18,7 @@ import { ACHIEVEMENTS } from './data.mjs';
 // qrcode 由 vendor/qrcode.js（UMD）提供全局变量
 const qrLib = window.qrcode;
 import { shareStatsText, shareAchievementsText, shareWeeklyText, SITE_URL } from './share.mjs';
+import { roundTimer } from './rules.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
@@ -59,6 +60,9 @@ const state = {
   diff: 'normal',               // 本局难度 key
   isDaily: false,               // 本局是否为每日挑战
   isWeekly: false,              // 本局是否为每周挑战
+  timed: localStorage.getItem('rw-timed') === '1', // 限时模式开关（跨局记忆）
+  timedRound: false,            // 本局是否为限时局
+  timeLeft: null,               // 限时剩余秒数
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
   dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
@@ -250,6 +254,8 @@ window.__rw = {
     isDaily: state.isDaily,
   }),
   debugStartDaily: () => startRound(null, { daily: dailyKey() }),
+  timedInfo: () => ({ timed: state.timed, timedRound: state.timedRound, timeLeft: state.timeLeft }),
+  debugSetTimed: (v) => { state.timed = !!v; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); return state.timed; },
   weeklyInfo: () => ({ key: weekKey(), seed: weekSeed(weekKey()), difficulty: weekDifficulty(weekKey()), status: weeklyStatus(state.weekly, weekKey()), isWeekly: state.isWeekly }),
   debugStartWeekly: () => startRound(null, { weekly: weekKey() }),
   // 存档
@@ -626,6 +632,9 @@ function startRound(diffKey, opts = {}) {
   }
   state.stepsMax = diff.steps;
   state.stepsLeft = diff.steps;
+  // 限时模式：按难度设置倒计时
+  state.timedRound = !!state.timed;
+  state.timeLeft = state.timedRound ? roundTimer(diff.key) : null;
   // 连续打卡奖励：每日挑战按 streak 额外加步数
   state.dailyBonus = 0;
   if (daily) {
@@ -1498,6 +1507,7 @@ function refreshLangUI() {
   if (vigBtn) vigBtn.textContent = state.vignette ? `🕶 ${L('防晕遮罩')}：${L('开')}` : `🕶 ${L('防晕遮罩')}：${L('关')}`;
   const vol = $('volume');
   if (vol) vol.value = String(volumeToPercent(state.volume));
+  refreshTimedUI();
   refreshPackUI();
   updateHud();
 }
@@ -1516,6 +1526,15 @@ function applyPackTheme(key) {
     localStorage.setItem('rw-timbre', pack.timbre);
   }
   refreshLangUI();
+}
+
+/** 限时模式开关状态。 */
+function refreshTimedUI() {
+  const b = $('timed-btn');
+  if (b) {
+    b.textContent = `⏱ ${L('限时')}：${state.timed ? L('开') : L('关')}`;
+    b.style.opacity = state.timed ? '1' : '0.65';
+  }
 }
 
 /** 词包选中态。 */
@@ -1694,6 +1713,7 @@ function wire2D() {
   $('start-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(state.pendingDiff); };
   $('daily-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { daily: dailyKey() }); };
   $('weekly-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { weekly: weekKey() }); };
+  $('timed-btn').onclick = () => { state.timed = !state.timed; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); sfx.ui(); };
   $('save-export').onclick = () => { sfx.ui(); exportSaveFile(); };
   $('save-import').onclick = () => { sfx.ui(); $('save-file').click(); };
   $('save-file').onchange = (e) => importSaveFile(e);
@@ -1842,6 +1862,18 @@ function updateHud() {
   $('hud-score').textContent = String(state.score);
   $('hud-best').textContent = String(state.best);
   $('hud-steps').textContent = state.unlimited ? '∞' : String(state.stepsLeft);
+  // 限时模式计时
+  const timerChip = $('hud-timer-chip');
+  const timerEl = $('hud-timer');
+  if (timerChip && timerEl) {
+    if (state.timedRound && state.timeLeft !== null) {
+      const sec = Math.max(0, Math.ceil(state.timeLeft));
+      timerEl.textContent = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+      timerChip.style.display = '';
+    } else {
+      timerChip.style.display = 'none';
+    }
+  }
   $('hud-words2').textContent = String(state.collected.length);
   $('hud-score2').textContent = String(state.score);
   $('hud-best2').textContent = String(state.best);
@@ -1889,7 +1921,7 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
-  $('end-stats').textContent = `${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
+  $('end-stats').textContent = `${state.timedRound ? `⏱ ${L('限时')} · ` : ''}${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
   const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('end-history').textContent = [
     historyLine(),
@@ -2327,6 +2359,15 @@ function rerollQuote() {
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = state.frozen ? 0 : performance.now() / 1000;
+
+  // 限时模式倒计时（暂停/冻结时不走）
+  if (state.mode === 'playing' && state.timedRound && state.timeLeft !== null && !state.frozen) {
+    state.timeLeft = Math.max(0, state.timeLeft - dt);
+    if (state.timeLeft <= 0) {
+      state.timeLeft = 0;
+      endRound(false);
+    }
+  }
 
   // 路径回放：镜头沿足迹巡览
   if (state.replay) {

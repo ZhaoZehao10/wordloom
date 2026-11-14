@@ -874,7 +874,31 @@ ok(shares.stats.includes('《拾径》') && shares.stats.includes('http'), '统�
 ok(shares.ach.includes('/16'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
 ok(shares.weekly.includes('《拾径》') && shares.weekly.includes('http'), '周报分享文案含链接');
 
-console.log('\n[29] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[29] 限时模式');
+const timed = await evalJs(`(async () => {
+  window.__rw.debugSetTimed(true);
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 260));
+  const info1 = window.__rw.timedInfo();
+  const chip = document.getElementById('hud-timer-chip').style.display;
+  const text = document.getElementById('hud-timer').textContent;
+  await new Promise(r => setTimeout(r, 1200));
+  const info2 = window.__rw.timedInfo();
+  const st = window.__rw.state;
+  st.timeLeft = 0.05;
+  await new Promise(r => setTimeout(r, 500));
+  const mode = st.mode;
+  const endText = document.getElementById('end-stats').textContent;
+  window.__rw.debugSetTimed(false);
+  return { info1, chip, text, decreased: info1.timeLeft - info2.timeLeft, mode, endText };
+})()`);
+ok(timed.info1.timed === true && timed.info1.timedRound === true, '限时模式已开启并作用于本局');
+ok(timed.info1.timeLeft > 85 && timed.info1.timeLeft <= 90, `标准难度倒计时 90s（${timed.info1.timeLeft.toFixed(1)}）`);
+ok(timed.chip !== 'none' && /^\d{2}:\d{2}$/.test(timed.text), `HUD 显示倒计时（${timed.text}）`);
+ok(timed.decreased >= 0.8, `倒计时在走（-${timed.decreased.toFixed(1)}s）`);
+ok(timed.mode === 'ended-fail' && timed.endText.includes('限时'), `超时判负并标注限时「${timed.endText.slice(0, 40)}…」`);
+
+console.log('\n[30] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

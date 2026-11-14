@@ -173,3 +173,8 @@ export function buildResult({
     bonus: finalScore({ win, stepsLeft, wordCount, unlimited }),
   };
 }
+
+/** 限时模式各难度时长（秒）。 */
+export function roundTimer(diffKey) {
+  return ({ easy: 120, normal: 90, hard: 75 })[diffKey] || 90;
+}

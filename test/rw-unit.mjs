@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
-  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode,
+  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer,
 } from '../public/rw/js/rules.mjs';
 import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
@@ -1565,6 +1565,18 @@ section('X. 分享文案');
   const w = shareWeeklyText({ weeksPlayed: 5, best: 70, total: 210, currentKey: '2026-W46' });
   ok(w.includes('2026-W46') && w.includes('5 周') && w.includes('210 分') && w.includes('70'), '周报文案', w);
   ok(shareWeeklyText({ weeksPlayed: 0 }).includes('首胜'), '零周文案');
+}
+
+// ═══════════════════ Y. 限时模式 ═══════════════════
+
+section('Y. 限时模式');
+
+{
+  eq(roundTimer('easy'), 120, '悠然 120 秒');
+  eq(roundTimer('normal'), 90, '标准 90 秒');
+  eq(roundTimer('hard'), 75, '紧绷 75 秒');
+  eq(roundTimer('unknown'), 90, '未知难度回落 90');
+  eq(roundTimer(null), 90, 'null 回落 90');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
