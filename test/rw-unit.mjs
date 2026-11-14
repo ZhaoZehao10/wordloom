@@ -1189,6 +1189,8 @@ section('N. 每日榜图表 & 词包成就');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, weeklyWin: true })), ['抵达 1024', '周冠军'], '每周挑战获胜 → 周冠军');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, fogWin: true })), ['抵达 1024', '雾中行者'], '迷雾获胜 → 雾中行者');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, timedWin: true })), ['抵达 1024', '争分夺秒'], '限时获胜 → 争分夺秒');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, fogWin: true, timedWin: true, comboWin: true })), ['抵达 1024', '雾中行者', '争分夺秒', '双重考验'], '迷雾+限时 → 双重考验');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, comboWin: true })), [], '未获胜不给组合成就');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, fogWin: true, timedWin: true })), [], '未获胜不给模式成就');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, dailyWin: true })), [], '未获胜不给冠军成就');
   // 与其它成就叠加
@@ -1356,7 +1358,7 @@ section('R. 成就持久化 & 历史最佳');
 {
   // 所有成就都带唯一 key
   const keys = Object.keys(ACHIEVEMENTS);
-  ok(keys.length >= 13, `成就总数 ${keys.length} ≥ 13`);
+  ok(keys.length >= 19, `成就总数 ${keys.length} ≥ 19`);
   for (const k of keys) ok(ACHIEVEMENTS[k].icon && ACHIEVEMENTS[k].name, `成就 ${k} 有图标与名称`);
   // achievementsFor 输出带 key
   const list = achievementsFor({ win: true, stepsLeft: 6, wordCount: 12, collectionSize: 31, streakBest: 7 });

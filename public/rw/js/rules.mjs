@@ -34,7 +34,7 @@ export function finalScore({ win, stepsLeft, wordCount, unlimited = false }) {
 export function achievementsFor({
   win, stepsLeft, wordCount, unlimited = false,
   collectionSize = 0, diffsWon = [], lexiconTotal = 0, packsCompleted = [], streakBest = 0,
-  dailyWin = false, weeklyWin = false, fogWin = false, timedWin = false,
+  dailyWin = false, weeklyWin = false, fogWin = false, timedWin = false, comboWin = false,
 }) {
   const out = [];
   const add = (key) => out.push({ key, ...ACHIEVEMENTS[key] });
@@ -68,6 +68,7 @@ export function achievementsFor({
   if (win && weeklyWin) add('weekWin');
   if (win && fogWin) add('fogWin');
   if (win && timedWin) add('timedWin');
+  if (win && comboWin) add('comboWin');
   return out;
 }
 
@@ -160,6 +161,7 @@ export function buildResult({
   weeklyWin = false,      // 本局每周挑战获胜
   fogWin = false,         // 迷雾模式下获胜
   timedWin = false,       // 限时模式下获胜
+  comboWin = false,       // 迷雾+限时同时获胜
   rand = Math.random,
 }) {
   const { poem, words } = pathPoem(visitedWords);
@@ -172,7 +174,7 @@ export function buildResult({
     steps,
     quote: quote || pickQuote(rand),
     achievements: achievementsFor({
-      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted, streakBest, dailyWin, weeklyWin, fogWin, timedWin,
+      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted, streakBest, dailyWin, weeklyWin, fogWin, timedWin, comboWin,
     }),
     bonus: finalScore({ win, stepsLeft, wordCount, unlimited }),
   };

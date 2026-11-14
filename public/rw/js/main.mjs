@@ -706,6 +706,8 @@ function endRound(win) {
     words: wordCount,
     diff: state.diff,
     unlimited: state.unlimited,
+    timed: state.timedRound,
+    fog: !!state.fog,
   }, HISTORY_LIMIT);
   localStorage.setItem('rw-history', serializeHistory(state.history));
   // 限时最佳（分难度，只升不降）
@@ -764,6 +766,7 @@ function resultData(win) {
     weeklyWin: !!state.isWeekly && win,
     fogWin: !!state.fog && win,
     timedWin: !!state.timedRound && win,
+    comboWin: !!state.fog && !!state.timedRound && win,
   });
   return {
     win,
@@ -1164,7 +1167,8 @@ function openStats() {
       ? runs.map((r) => {
           const dn = L(r.diff === 'easy' ? '悠然' : r.diff === 'hard' ? '紧绷' : '标准');
           const date = r.ts ? new Date(r.ts).toLocaleDateString('zh-CN') : '';
-          return `<div class="recent-row"><span>${date}</span><span>${dn}</span><span>${r.win ? '✓' : '✗'}</span><b>${r.score}</b></div>`;
+          const marks = `${r.timed ? '⏱' : ''}${r.fog ? '🌫' : ''}`;
+          return `<div class="recent-row"><span>${date}</span><span>${dn}${marks}</span><span>${r.win ? '✓' : '✗'}</span><b>${r.score}</b></div>`;
         }).join('')
       : `<div class="recent-empty">${L('暂无对局')}</div>`;
   }

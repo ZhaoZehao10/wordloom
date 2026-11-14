@@ -94,6 +94,7 @@ export const ACHIEVEMENTS = {
   weekWin:     { icon: '🏆', name: '周冠军' },   // 赢下一局每周挑战
   fogWin:      { icon: '🌫', name: '雾中行者' }, // 迷雾模式下赢一局
   timedWin:    { icon: '⏱', name: '争分夺秒' }, // 限时模式下赢一局
+  comboWin:    { icon: '🎭', name: '双重考验' }, // 迷雾+限时同时开启获胜
 };
 
 export const DIFFICULTIES = [

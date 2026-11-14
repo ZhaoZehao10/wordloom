@@ -6,7 +6,7 @@
 export const HISTORY_LIMIT = 30;
 
 /** 单局记录（字段固定，便于统计与迁移）。 */
-export function makeRecord({ win, score, steps, words, diff = 'normal', unlimited = false, ts = Date.now() }) {
+export function makeRecord({ win, score, steps, words, diff = 'normal', unlimited = false, timed = false, fog = false, ts = Date.now() }) {
   return {
     win: !!win,
     score: Number.isFinite(score) ? score : 0,
@@ -14,6 +14,8 @@ export function makeRecord({ win, score, steps, words, diff = 'normal', unlimite
     words: Number.isFinite(words) ? words : 0,
     diff: typeof diff === 'string' ? diff : 'normal',
     unlimited: !!unlimited,
+    timed: !!timed,
+    fog: !!fog,
     ts: Number.isFinite(ts) ? ts : Date.now(),
   };
 }
