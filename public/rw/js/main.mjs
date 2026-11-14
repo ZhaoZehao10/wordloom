@@ -62,6 +62,7 @@ const state = {
   isDaily: false,               // 本局是否为每日挑战
   isWeekly: false,              // 本局是否为每周挑战
   timed: localStorage.getItem('rw-timed') === '1', // 限时模式开关（跨局记忆）
+  fog: localStorage.getItem('rw-fog') === '1',     // 迷雾模式开关（跨局记忆）
   timedRound: false,            // 本局是否为限时局
   timeLeft: null,               // 限时剩余秒数
   timedBest: parseTimedBest(localStorage.getItem('rw-timed-best') || ''), // 限时最佳（分难度）
@@ -258,6 +259,8 @@ window.__rw = {
   }),
   debugStartDaily: () => startRound(null, { daily: dailyKey() }),
   timedInfo: () => ({ timed: state.timed, timedRound: state.timedRound, timeLeft: state.timeLeft }),
+  fogInfo: () => { const adj = state.graph ? adjacentOf(state.at) : []; const labels = state.graph ? state.graph.nodes.filter((n) => n._obj && n._obj.userData.label.visible).length : 0; return { fog: state.fog, adjacent: adj.length, labels }; },
+  debugSetFog: (v) => { state.fog = !!v; localStorage.setItem('rw-fog', state.fog ? '1' : '0'); refreshFogUI(); refreshAdjacencyVisuals(); return state.fog; },
   debugSetTimed: (v) => { state.timed = !!v; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); return state.timed; },
   weeklyInfo: () => ({ key: weekKey(), seed: weekSeed(weekKey()), difficulty: weekDifficulty(weekKey()), status: weeklyStatus(state.weekly, weekKey()), isWeekly: state.isWeekly }),
   debugStartWeekly: () => startRound(null, { weekly: weekKey() }),
@@ -759,6 +762,8 @@ function resultData(win) {
     streakBest: dailyStreak(state.dailyHistory, dailyKey()).best,
     dailyWin: !!state.isDaily && win,
     weeklyWin: !!state.isWeekly && win,
+    fogWin: !!state.fog && win,
+    timedWin: !!state.timedRound && win,
   });
   return {
     win,
@@ -1535,6 +1540,7 @@ function refreshLangUI() {
   const vol = $('volume');
   if (vol) vol.value = String(volumeToPercent(state.volume));
   refreshTimedUI();
+  refreshFogUI();
   refreshPackUI();
   updateHud();
 }
@@ -1561,6 +1567,15 @@ function refreshTimedUI() {
   if (b) {
     b.textContent = `⏱ ${L('限时')}：${state.timed ? L('开') : L('关')}`;
     b.style.opacity = state.timed ? '1' : '0.65';
+  }
+}
+
+/** 迷雾模式开关状态。 */
+function refreshFogUI() {
+  const b = $('fog-btn');
+  if (b) {
+    b.textContent = `🌫 ${L('迷雾')}：${state.fog ? L('开') : L('关')}`;
+    b.style.opacity = state.fog ? '1' : '0.65';
   }
 }
 
@@ -1748,6 +1763,7 @@ function wire2D() {
   $('daily-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { daily: dailyKey() }); };
   $('weekly-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { weekly: weekKey() }); };
   $('timed-btn').onclick = () => { state.timed = !state.timed; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); sfx.ui(); };
+  $('fog-btn').onclick = () => { state.fog = !state.fog; localStorage.setItem('rw-fog', state.fog ? '1' : '0'); refreshFogUI(); refreshAdjacencyVisuals(); sfx.ui(); };
   $('save-export').onclick = () => { sfx.ui(); exportSaveFile(); };
   $('save-import').onclick = () => { sfx.ui(); $('save-file').click(); };
   $('save-file').onchange = (e) => importSaveFile(e);
@@ -2130,6 +2146,7 @@ function refreshAdjacencyVisuals() {
     else if (isAdj) brightness = 1.22; // 可走节点次亮
     recolorNode(colors, ballNormals, ballRanges, i, { color: hexToRgb(color), brightness });
 
+    nd._obj.userData.label.visible = !state.fog || isHere || isAdj || i === state.graph.goalIdx;
     nd._obj.userData.label.material.opacity = nd.collected && nd.kind === 'word' ? 0.45 : 1;
   }
   ballsGeo.attributes.color.needsUpdate = true;

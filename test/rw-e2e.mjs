@@ -747,11 +747,11 @@ const achPanel = await evalJs(`(async () => {
   window.__rw.debugCloseMonth();
   return { info0, panel, gotDom, lockedDom, countText, closed, monthText };
 })()`);
-ok(achPanel.info0.total === 16, `成就总数 ${achPanel.info0.total}`);
+ok(achPanel.info0.total === 18, `成就总数 ${achPanel.info0.total}`);
 ok(achPanel.info0.unlocked.length > 0, `已有解锁成就（${achPanel.info0.unlocked.length}）`);
-ok(achPanel.panel.total === 16 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
+ok(achPanel.panel.total === 18 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
 ok(achPanel.gotDom === achPanel.info0.unlocked.length && achPanel.lockedDom > 0, `已解锁/未解锁渲染正确（${achPanel.gotDom}/${achPanel.lockedDom}）`);
-ok(achPanel.countText === `${achPanel.info0.unlocked.length}/16`, `成就计数显示 ${achPanel.countText}`);
+ok(achPanel.countText === `${achPanel.info0.unlocked.length}/18`, `成就计数显示 ${achPanel.countText}`);
 ok(achPanel.closed, '成就面板可关闭');
 ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
 
@@ -878,7 +878,7 @@ ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
 ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);
 const shares = await evalJs(`({ stats: window.__rw.debugShareStats(), ach: window.__rw.debugShareAch(), weekly: window.__rw.debugShareWeekly() })`);
 ok(shares.stats.includes('《拾径》') && shares.stats.includes('http'), '统计分享文案含链接');
-ok(shares.ach.includes('/16'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
+ok(shares.ach.includes('/18'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
 ok(shares.weekly.includes('《拾径》') && shares.weekly.includes('http'), '周报分享文案含链接');
 
 console.log('\n[29] 限时模式');
@@ -911,7 +911,40 @@ ok(timed.mode === 'ended-fail' && timed.endText.includes('限时'), `超时判�
 ok(timed.timedText.includes('限时最佳') && /标准 \d+/.test(timed.timedText), `统计面板显示限时最佳「${timed.timedText}」`);
 ok(timed.recentRows >= 1, `最近对局列表有记录（${timed.recentRows} 行）`);
 
-console.log('\n[30] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[30] 迷雾模式 & 模式成就');
+const fog = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.debugSetFog(true);
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 260));
+  const info = window.__rw.fogInfo();
+  const total = st.graph.nodes.length;
+  // 走一步后相邻集合变化
+  const adj0 = {};
+  for (const [a, b] of st.graph.edges) (adj0[a] ||= []).push(b), (adj0[b] ||= []).push(a);
+  window.__rw.tryWalk(adj0[st.at][0]);
+  while (st.glide) await new Promise(r => setTimeout(r, 60));
+  const info2 = window.__rw.fogInfo();
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 200));
+  const achFog = window.__rw.achievementInfo().unlocked.includes('fogWin');
+  window.__rw.debugSetFog(false);
+  // 限时胜利成就
+  window.__rw.debugSetTimed(true);
+  window.__rw.startRound('normal');
+  await new Promise(r => setTimeout(r, 220));
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 200));
+  const achTimed = window.__rw.achievementInfo().unlocked.includes('timedWin');
+  window.__rw.debugSetTimed(false);
+  return { info, info2, total, achFog, achTimed };
+})()`);
+ok(fog.info.fog === true && fog.info.labels < fog.total * 0.5, `迷雾下仅少量标签可见（${fog.info.labels}/${fog.total}）`);
+ok(fog.info.labels > 0 && fog.info2.labels > 0, '迷雾下相邻标签仍可见');
+ok(fog.achFog, '迷雾模式获胜解锁「雾中行者」');
+ok(fog.achTimed, '限时模式获胜解锁「争分夺秒」');
+
+console.log('\n[31] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

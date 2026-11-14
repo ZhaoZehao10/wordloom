@@ -92,6 +92,8 @@ export const ACHIEVEMENTS = {
   streak30:    { icon: '🗓', name: '月满勤' },   // 每日挑战连续 30 天
   dailyWin:    { icon: '☀️', name: '日冠军' },   // 赢下一局每日挑战
   weekWin:     { icon: '🏆', name: '周冠军' },   // 赢下一局每周挑战
+  fogWin:      { icon: '🌫', name: '雾中行者' }, // 迷雾模式下赢一局
+  timedWin:    { icon: '⏱', name: '争分夺秒' }, // 限时模式下赢一局
 };
 
 export const DIFFICULTIES = [

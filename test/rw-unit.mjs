@@ -1187,6 +1187,9 @@ section('N. 每日榜图表 & 词包成就');
   eq(names(achievementsFor({ ...base, packsCompleted: ['nature'] })).length, 1, '自然全集');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, dailyWin: true })), ['抵达 1024', '日冠军'], '每日挑战获胜 → 日冠军');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, weeklyWin: true })), ['抵达 1024', '周冠军'], '每周挑战获胜 → 周冠军');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, fogWin: true })), ['抵达 1024', '雾中行者'], '迷雾获胜 → 雾中行者');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, timedWin: true })), ['抵达 1024', '争分夺秒'], '限时获胜 → 争分夺秒');
+  eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, fogWin: true, timedWin: true })), [], '未获胜不给模式成就');
   eq(names(achievementsFor({ win: false, stepsLeft: 0, wordCount: 0, dailyWin: true })), [], '未获胜不给冠军成就');
   // 与其它成就叠加
   const combo = names(achievementsFor({ win: true, stepsLeft: 6, wordCount: 3, collectionSize: 60, lexiconTotal: 120, packsCompleted: ['classic'] }));

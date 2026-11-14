@@ -34,7 +34,7 @@ export function finalScore({ win, stepsLeft, wordCount, unlimited = false }) {
 export function achievementsFor({
   win, stepsLeft, wordCount, unlimited = false,
   collectionSize = 0, diffsWon = [], lexiconTotal = 0, packsCompleted = [], streakBest = 0,
-  dailyWin = false, weeklyWin = false,
+  dailyWin = false, weeklyWin = false, fogWin = false, timedWin = false,
 }) {
   const out = [];
   const add = (key) => out.push({ key, ...ACHIEVEMENTS[key] });
@@ -66,6 +66,8 @@ export function achievementsFor({
   if (Number.isFinite(streakBest) && streakBest >= 30) add('streak30');
   if (win && dailyWin) add('dailyWin');
   if (win && weeklyWin) add('weekWin');
+  if (win && fogWin) add('fogWin');
+  if (win && timedWin) add('timedWin');
   return out;
 }
 
@@ -156,6 +158,8 @@ export function buildResult({
   streakBest = 0,         // 历史最长连续打卡天数
   dailyWin = false,       // 本局每日挑战获胜
   weeklyWin = false,      // 本局每周挑战获胜
+  fogWin = false,         // 迷雾模式下获胜
+  timedWin = false,       // 限时模式下获胜
   rand = Math.random,
 }) {
   const { poem, words } = pathPoem(visitedWords);
@@ -168,7 +172,7 @@ export function buildResult({
     steps,
     quote: quote || pickQuote(rand),
     achievements: achievementsFor({
-      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted, streakBest, dailyWin, weeklyWin,
+      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted, streakBest, dailyWin, weeklyWin, fogWin, timedWin,
     }),
     bonus: finalScore({ win, stepsLeft, wordCount, unlimited }),
   };

@@ -1,0 +1,6 @@
+Warning: Detected unsettled top-level await at file:///D:/DSH_Workspace/RandomWalkVR/test/rw-e2e.mjs:157
+const failResult = await evalJs(`(async () => {
+                   ^
+
+
+
