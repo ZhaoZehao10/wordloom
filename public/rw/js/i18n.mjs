@@ -78,6 +78,8 @@ export const EN = {
   '历史最佳': 'All-time best',
   '周最佳': 'Best week',
   '连续打卡': 'Streak (cur/best)',
+  '限时最佳': 'Timed best',
+  '暂无对局': 'No runs yet',
   '🗓 每周挑战': '🗓 Weekly challenge',
   '⏱ 限时': '⏱ Timed',
   '限时': 'Timed',

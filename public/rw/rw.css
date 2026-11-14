@@ -302,3 +302,11 @@ button.ghost:hover { color: var(--text); }
   border-radius: 10px; border: 1px solid rgba(140,165,255,0.16); background: rgba(20,27,51,0.35); }
 .stat-item span { font-size: 11px; color: #8b96b8; }
 .stat-item b { font-size: 18px; color: #dfe7ff; }
+
+/* ---------- 最近对局 ---------- */
+
+.recent-list { max-width: 460px; margin: 0 auto 14px; }
+.recent-row { display: grid; grid-template-columns: 1fr 60px 24px 50px; gap: 6px; align-items: center;
+  font-size: 12px; color: #8b96b8; padding: 4px 8px; border-bottom: 1px solid rgba(140,165,255,0.08); }
+.recent-row b { color: #dfe7ff; text-align: right; }
+.recent-empty { text-align: center; font-size: 12px; color: #5f6a88; padding: 8px; }

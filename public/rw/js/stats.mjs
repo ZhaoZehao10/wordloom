@@ -221,3 +221,37 @@ export function careerStats(history) {
     byDiff,
   };
 }
+// ---------------- 限时最佳成绩 ----------------
+
+export const TIMED_BEST_KEY = 'rw-timed-best';
+
+/** 解析限时最佳：{easy:{score,ts}, normal:{...}, hard:{...}}。 */
+export function parseTimedBest(raw) {
+  const out = {};
+  if (typeof raw !== 'string' || !raw) return out;
+  try {
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return out;
+    for (const k of ['easy', 'normal', 'hard']) {
+      const v = d[k];
+      if (v && Number.isFinite(v.score) && v.score >= 0) out[k] = { score: v.score, ts: Number.isFinite(v.ts) ? v.ts : 0 };
+    }
+  } catch { /* 坏数据按空 */ }
+  return out;
+}
+
+/** 更新某难度的限时最佳（只升不降），返回新对象。 */
+export function updateTimedBest(best, diff, score, ts = Date.now()) {
+  const out = { ...(best && typeof best === 'object' ? best : {}) };
+  const key = ['easy', 'normal', 'hard'].includes(diff) ? diff : 'normal';
+  const val = Number.isFinite(score) ? score : 0;
+  const cur = out[key];
+  if (!cur || val > cur.score) out[key] = { score: val, ts };
+  return out;
+}
+
+/** 最近对局（history 新的在前）。 */
+export function recentRuns(history, n = 6) {
+  const list = Array.isArray(history) ? history.filter(isValidRecord) : [];
+  return list.slice(0, Math.max(0, n));
+}

@@ -22,7 +22,8 @@ import { roundTimer } from './rules.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
-  parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats, ACHIEVEMENTS_KEY,
+  parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
+  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
@@ -63,6 +64,8 @@ const state = {
   timed: localStorage.getItem('rw-timed') === '1', // 限时模式开关（跨局记忆）
   timedRound: false,            // 本局是否为限时局
   timeLeft: null,               // 限时剩余秒数
+  timedBest: parseTimedBest(localStorage.getItem('rw-timed-best') || ''), // 限时最佳（分难度）
+  monthOffset: 0,               // 月视图偏移（0=本月）
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
   dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
@@ -274,7 +277,7 @@ window.__rw = {
     persisted: parseCollection(localStorage.getItem('rw-collection') || '').length,
   }),
   debugOpenCollection: () => openCollection(),
-  debugOpenMonth: () => openMonth(),
+  debugOpenMonth: (offset = 0) => openMonth(offset),
   debugWeeklyPoster: () => buildWeeklyPosterDataURL(),
   debugWeeklyCsv: () => buildWeeklyCsv(),
   debugAchievementCard: () => buildAchievementCardDataURL(),
@@ -702,6 +705,11 @@ function endRound(win) {
     unlimited: state.unlimited,
   }, HISTORY_LIMIT);
   localStorage.setItem('rw-history', serializeHistory(state.history));
+  // 限时最佳（分难度，只升不降）
+  if (state.timedRound) {
+    state.timedBest = updateTimedBest(state.timedBest, state.diff, state.score);
+    localStorage.setItem(TIMED_BEST_KEY, JSON.stringify(state.timedBest));
+  }
   // 每日/每周挑战成绩（每个周期只保留最新一次）
   if (state.isDaily && state.dailyKey) {
     state.daily = dailyRecord({ key: state.dailyKey, score: state.score, win });
@@ -1136,6 +1144,25 @@ function openStats() {
     [L('困难'), `${s.byDiff.hard.wins}/${s.byDiff.hard.played}`],
   ];
   grid.innerHTML = rows.map(([k, v]) => `<div class="stat-item"><span>${k}</span><b>${v}</b></div>`).join('');
+  // 限时最佳
+  const tb = state.timedBest || {};
+  const tbEl = $('stats-timed');
+  if (tbEl) {
+    const fmt = (x) => (x && Number.isFinite(x.score) ? String(x.score) : '—');
+    tbEl.textContent = `${L('限时最佳')}：${L('悠然')} ${fmt(tb.easy)} · ${L('标准')} ${fmt(tb.normal)} · ${L('紧绷')} ${fmt(tb.hard)}`;
+  }
+  // 最近对局
+  const rl = $('recent-list');
+  if (rl) {
+    const runs = recentRuns(state.history, 6);
+    rl.innerHTML = runs.length
+      ? runs.map((r) => {
+          const dn = L(r.diff === 'easy' ? '悠然' : r.diff === 'hard' ? '紧绷' : '标准');
+          const date = r.ts ? new Date(r.ts).toLocaleDateString('zh-CN') : '';
+          return `<div class="recent-row"><span>${date}</span><span>${dn}</span><span>${r.win ? '✓' : '✗'}</span><b>${r.score}</b></div>`;
+        }).join('')
+      : `<div class="recent-empty">${L('暂无对局')}</div>`;
+  }
   $('stats').classList.remove('hidden');
   sfx.ui();
   return s;
@@ -1556,10 +1583,17 @@ function renderDailyBoard() {
 }
 
 /** 每日挑战月视图（月历网格）。 */
-function openMonth() {
-  const g = monthGrid(state.dailyHistory, {});
-  const sum = monthSummary(state.dailyHistory, {});
+function openMonth(offset = state.monthOffset || 0) {
+  state.monthOffset = offset;
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const year = base.getFullYear();
+  const month = base.getMonth() + 1;
+  const g = monthGrid(state.dailyHistory, { year, month });
+  const sum = monthSummary(state.dailyHistory, { year, month });
   $('month-title').textContent = `${L('每日挑战')} · ${g.year}-${String(g.month).padStart(2, '0')}`;
+  const monthLabel = $('month-label');
+  if (monthLabel) monthLabel.textContent = `${g.year}-${String(g.month).padStart(2, '0')}`;
   const best = dailyBest(state.dailyHistory);
   const wBest = weeklyBest(state.weeklyHistory);
   $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}` + (best.score > 0 ? ` · ${L('历史最佳')} ${best.score}` : '') + (wBest.score > 0 || state.weeklyHistory.length > 0 ? ` · ${L('周最佳')} ${wBest.score}` : '');
@@ -1729,6 +1763,8 @@ function wire2D() {
   $('ach-export').onclick = () => downloadAchievementCard();
   $('ach-share').onclick = () => copyShare(buildShareAch());
   $('month-close').onclick = () => { sfx.ui(); closeMonth(); };
+  $('month-prev').onclick = () => { sfx.ui(); openMonth(state.monthOffset - 1); };
+  $('month-next').onclick = () => { sfx.ui(); openMonth(state.monthOffset + 1); };
   $('week-poster').onclick = () => downloadWeeklyPoster();
   $('week-share').onclick = () => copyShare(buildShareWeekly());
   $('week-csv').onclick = () => downloadWeeklyCsv();

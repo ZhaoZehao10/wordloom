@@ -40,6 +40,7 @@ import {
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
+  parseTimedBest, updateTimedBest, recentRuns,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1577,6 +1578,38 @@ section('Y. 限时模式');
   eq(roundTimer('hard'), 75, '紧绷 75 秒');
   eq(roundTimer('unknown'), 90, '未知难度回落 90');
   eq(roundTimer(null), 90, 'null 回落 90');
+}
+
+// ═══════════════════ Z. 限时最佳 & 最近对局 ═══════════════════
+
+section('Z. 限时最佳 & 最近对局');
+
+{
+  eq(parseTimedBest('').easy, undefined, '空限时记录');
+  eq(parseTimedBest('bad').easy, undefined, '坏 JSON');
+  const tb = parseTimedBest(JSON.stringify({ easy: { score: 33, ts: 1 }, normal: { score: 'x' }, hard: { score: -1 } }));
+  eq(tb.easy.score, 33, '解析悠然最佳');
+  eq(tb.normal, undefined, '非法分数丢弃');
+  eq(tb.hard, undefined, '负分丢弃');
+
+  const b1 = updateTimedBest({}, 'easy', 10, 1);
+  eq(b1.easy.score, 10, '首次记录');
+  const b2 = updateTimedBest(b1, 'easy', 5, 2);
+  eq(b2.easy.score, 10, '低分不覆盖');
+  const b3 = updateTimedBest(b2, 'easy', 20, 3);
+  eq(b3.easy.score, 20, '高分覆盖');
+  eq(b1.easy.score, 10, '不修改原对象');
+  eq(updateTimedBest({}, 'weird', 7).normal.score, 7, '未知难度归 normal');
+
+  const runs = recentRuns([
+    { win: true, score: 30, steps: 5, words: 2, diff: 'easy', ts: 3 },
+    { win: false, score: 10, steps: 8, words: 1, diff: 'hard', ts: 2 },
+    { win: true, score: 50, steps: 9, words: 4, diff: 'normal', ts: 1 },
+  ], 2);
+  eq(runs.length, 2, '最近对局限制数量');
+  eq(runs[0].score, 30, '新的在前');
+  eq(recentRuns(null).length, 0, 'null 安全');
+  eq(recentRuns([{ win: 'x' }]).length, 0, '脏记录过滤');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
