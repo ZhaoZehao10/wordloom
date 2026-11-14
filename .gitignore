@@ -36,3 +36,7 @@ test/_*
 test/soak-trend.json
 
 test/perf-history.json
+
+# 本地测试日志
+e2e.log
+e2e.err
