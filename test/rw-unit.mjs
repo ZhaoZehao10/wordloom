@@ -29,6 +29,7 @@ import {
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
+import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
@@ -1689,6 +1690,18 @@ section('AC. 版本一致性');
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   eq(APP_VERSION, pkg.version, 'APP_VERSION 与 package.json 一致');
   ok(/^\d+\.\d+\.\d+$/.test(APP_VERSION), `版本号语义化（${APP_VERSION}）`);
+}
+
+// ═══════════════════ AD. 发布校验 ═══════════════════
+
+section('AD. 发布校验');
+
+{
+  eq(sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', 'sha256("abc") 已知值');
+  const list = buildChecksumList([{ name: 'none.txt', path: 'Z:/definitely/not/exist.txt' }]);
+  eq(list.length, 0, '缺失文件被跳过');
+  const text = renderChecksums([{ name: 'a.apk', sha256: '00ff' }, { name: 'b.html', sha256: '11ee' }]);
+  eq(text, '00ff  a.apk\n11ee  b.html\n', 'sha256sum 兼容格式');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
