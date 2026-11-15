@@ -30,7 +30,7 @@ import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
-import { validateVersions } from '../tools/release.mjs';
+import { validateVersions, releaseAssetsFor } from '../tools/release.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP, encryptSave, decryptSave, isEncryptedSave, ENCRYPTED_APP } from '../public/rw/js/save.mjs';
@@ -1720,6 +1720,10 @@ section('AE. 发布准备');
   ok(!badPkg.ok, '非法语义版本报错');
   const badCode = validateVersions({ pkgVersion: '1.2.3', appVersion: '1.2.3', manifestVersionName: '1.2.3', manifestVersionCode: '0' });
   ok(!badCode.ok && badCode.errors.some((e) => e.includes('versionCode')), 'versionCode 0 报错');
+  const assets = releaseAssetsFor('v9.9.9');
+  eq(assets.length, 3, '发布资产 3 个');
+  eq(assets.map((a) => a.name).join(','), 'Wordloom-v9.9.9.apk,Wordloom-offline-v9.9.9.html,SHA256SUMS.txt', '资产命名规范');
+  ok(assets.every((a) => a.type && a.kind), '资产类型完整');
 }
 
 // ═══════════════════ AF. 存档加密 ═══════════════════
