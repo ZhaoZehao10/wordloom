@@ -95,6 +95,8 @@ export const ACHIEVEMENTS = {
   fogWin:      { icon: '🌫', name: '雾中行者' }, // 迷雾模式下赢一局
   timedWin:    { icon: '⏱', name: '争分夺秒' }, // 限时模式下赢一局
   comboWin:    { icon: '🎭', name: '双重考验' }, // 迷雾+限时同时开启获胜
+  veteran:     { icon: '🧭', name: '百局行者' }, // 生涯累计 100 局
+  champion50:  { icon: '👑', name: '五十胜' },   // 生涯累计 50 胜
 };
 
 export const DIFFICULTIES = [

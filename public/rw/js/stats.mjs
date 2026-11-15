@@ -257,3 +257,33 @@ export function recentRuns(history, n = 6) {
   const list = Array.isArray(history) ? history.filter(isValidRecord) : [];
   return list.slice(0, Math.max(0, n));
 }
+// ---------------- 生涯累计（不受最近 30 局限制） ----------------
+
+export const CAREER_KEY = 'rw-career';
+
+/** 解析生涯累计：{rounds,wins,words,timedRounds,fogRounds}。 */
+export function parseCareer(raw) {
+  const out = { rounds: 0, wins: 0, words: 0, timedRounds: 0, fogRounds: 0 };
+  if (typeof raw !== 'string' || !raw) return out;
+  try {
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return out;
+    for (const k of Object.keys(out)) {
+      if (Number.isFinite(d[k]) && d[k] >= 0) out[k] = Math.floor(d[k]);
+    }
+  } catch { /* 坏数据按 0 */ }
+  return out;
+}
+
+/** 追加一局生涯累计，返回新对象。 */
+export function updateCareer(career, { win = false, words = 0, timed = false, fog = false } = {}) {
+  const base = career && typeof career === 'object' ? career : {};
+  const num = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+  return {
+    rounds: num(base.rounds) + 1,
+    wins: num(base.wins) + (win ? 1 : 0),
+    words: num(base.words) + num(words),
+    timedRounds: num(base.timedRounds) + (timed ? 1 : 0),
+    fogRounds: num(base.fogRounds) + (fog ? 1 : 0),
+  };
+}

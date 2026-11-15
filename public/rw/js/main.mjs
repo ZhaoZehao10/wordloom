@@ -23,7 +23,7 @@ import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
-  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, ACHIEVEMENTS_KEY,
+  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, parseCareer, updateCareer, CAREER_KEY, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
@@ -66,6 +66,7 @@ const state = {
   timedRound: false,            // 本局是否为限时局
   timeLeft: null,               // 限时剩余秒数
   timedBest: parseTimedBest(localStorage.getItem('rw-timed-best') || ''), // 限时最佳（分难度）
+  career: parseCareer(localStorage.getItem(CAREER_KEY) || ''), // 生涯累计
   monthOffset: 0,               // 月视图偏移（0=本月）
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
@@ -710,6 +711,9 @@ function endRound(win) {
     fog: !!state.fog,
   }, HISTORY_LIMIT);
   localStorage.setItem('rw-history', serializeHistory(state.history));
+  // 生涯累计（不受最近 30 局限制）
+  state.career = updateCareer(state.career, { win, words: wordCount, timed: state.timedRound, fog: !!state.fog });
+  localStorage.setItem(CAREER_KEY, JSON.stringify(state.career));
   // 限时最佳（分难度，只升不降）
   if (state.timedRound) {
     state.timedBest = updateTimedBest(state.timedBest, state.diff, state.score);
@@ -767,6 +771,8 @@ function resultData(win) {
     fogWin: !!state.fog && win,
     timedWin: !!state.timedRound && win,
     comboWin: !!state.fog && !!state.timedRound && win,
+    careerRounds: state.career ? state.career.rounds : 0,
+    careerWins: state.career ? state.career.wins : 0,
   });
   return {
     win,
@@ -1158,6 +1164,12 @@ function openStats() {
   if (tbEl) {
     const fmt = (x) => (x && Number.isFinite(x.score) ? String(x.score) : '—');
     tbEl.textContent = `${L('限时最佳')}：${L('悠然')} ${fmt(tb.easy)} · ${L('标准')} ${fmt(tb.normal)} · ${L('紧绷')} ${fmt(tb.hard)}`;
+  }
+  // 生涯累计
+  const cEl = $('stats-career');
+  if (cEl) {
+    const c = state.career || { rounds: 0, wins: 0, words: 0, timedRounds: 0, fogRounds: 0 };
+    cEl.textContent = `${L('生涯累计')}：${c.rounds} ${L('局')} · ${c.wins} ${L('胜')} · ${c.words} ${L('词')} · ${L('限时')} ${c.timedRounds} · ${L('迷雾')} ${c.fogRounds}`;
   }
   // 最近对局
   const rl = $('recent-list');

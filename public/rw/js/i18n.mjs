@@ -79,6 +79,7 @@ export const EN = {
   '周最佳': 'Best week',
   '连续打卡': 'Streak (cur/best)',
   '限时最佳': 'Timed best',
+  '生涯累计': 'Career total',
   '暂无对局': 'No runs yet',
   '🗓 每周挑战': '🗓 Weekly challenge',
   '⏱ 限时': '⏱ Timed',

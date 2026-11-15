@@ -40,7 +40,7 @@ import {
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
-  parseTimedBest, updateTimedBest, recentRuns,
+  parseTimedBest, updateTimedBest, recentRuns, parseCareer, updateCareer,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1615,6 +1615,36 @@ section('Z. 限时最佳 & 最近对局');
   eq(runs[0].score, 30, '新的在前');
   eq(recentRuns(null).length, 0, 'null 安全');
   eq(recentRuns([{ win: 'x' }]).length, 0, '脏记录过滤');
+}
+
+// ═══════════════════ AA. 生涯累计 & 里程碑 ═══════════════════
+
+section('AA. 生涯累计 & 里程碑');
+
+{
+  const names = (l) => l.map((a) => a.name);
+  eq(parseCareer(''), { rounds: 0, wins: 0, words: 0, timedRounds: 0, fogRounds: 0 }, '空生涯记录');
+  eq(parseCareer('bad').rounds, 0, '坏 JSON');
+  const c = parseCareer(JSON.stringify({ rounds: 10, wins: 4, words: 55, timedRounds: 2, fogRounds: 1 }));
+  eq(c.rounds, 10, '解析总局数');
+  eq(c.words, 55, '解析总词数');
+  eq(c.timedRounds, 2, '解析限时局');
+  eq(parseCareer(JSON.stringify({ rounds: -5, wins: 'x' })).rounds, 0, '负值归零');
+
+  const u1 = updateCareer({ rounds: 5, wins: 2, words: 30 }, { win: true, words: 4, timed: true });
+  eq(u1.rounds, 6, '局数 +1');
+  eq(u1.wins, 3, '胜场 +1');
+  eq(u1.words, 34, '词数累加');
+  eq(u1.timedRounds, 1, '限时局计数');
+  eq(u1.fogRounds, 0, '迷雾局计数');
+  const u2 = updateCareer(null, { win: false, words: 2, fog: true });
+  eq(u2.rounds, 1, 'null 起点');
+  eq(u2.wins, 0, '失败不计胜场');
+
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerRounds: 100 })), ['抵达 1024', '百局行者'], '100 局 → 百局行者');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerRounds: 99 })), ['抵达 1024'], '99 局不达成');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 50 })), ['抵达 1024', '五十胜'], '50 胜 → 五十胜');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 49 })), ['抵达 1024'], '49 胜不达成');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
