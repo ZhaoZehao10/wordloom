@@ -288,6 +288,7 @@ window.__rw = {
   debugAchievementCard: () => buildAchievementCardDataURL(),
   debugOpenAchievements: (filter) => openAchievements(filter),
   debugOpenStats: () => openStats(),
+  appVersion: () => APP_VERSION,
   debugOpenAbout: () => openAbout(),
   debugCloseAbout: () => { closeAbout(); return about.classList.contains('hidden'); },
   debugStatsCard: () => buildStatsCardDataURL(),

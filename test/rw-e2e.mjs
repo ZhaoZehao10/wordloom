@@ -1043,9 +1043,9 @@ const about = await evalJs(`(() => {
   window.__rw.debugOpenAbout();
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   const escClosed = document.getElementById('about').classList.contains('hidden');
-  return { info, text, closed, escClosed };
+  return { info, text, closed, escClosed, expected: window.__rw.appVersion() };
 })()`);
-ok(about.info.version === '1.4.6', `关于面板显示版本 ${about.info.version}`);
+ok(about.info.version === about.expected, `关于面板显示版本 ${about.info.version}（运行时 ${about.expected}）`);
 ok(about.text.includes('MIT') && about.text.includes('three.js') && about.text.includes('KB'), '关于面板包含许可/组件/存储');
 ok(about.closed && about.escClosed, '关于面板可关闭（按钮与 Esc）');
 
