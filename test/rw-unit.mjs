@@ -30,6 +30,7 @@ import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
+import { validateVersions } from '../tools/release.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
@@ -1702,6 +1703,23 @@ section('AD. 发布校验');
   eq(list.length, 0, '缺失文件被跳过');
   const text = renderChecksums([{ name: 'a.apk', sha256: '00ff' }, { name: 'b.html', sha256: '11ee' }]);
   eq(text, '00ff  a.apk\n11ee  b.html\n', 'sha256sum 兼容格式');
+}
+
+// ═══════════════════ AE. 发布准备 ═══════════════════
+
+section('AE. 发布准备');
+
+{
+  const good = validateVersions({ pkgVersion: '1.2.3', appVersion: '1.2.3', manifestVersionName: '1.2.3', manifestVersionCode: '7' });
+  ok(good.ok, '三方版本一致通过');
+  const badApp = validateVersions({ pkgVersion: '1.2.3', appVersion: '1.2.4', manifestVersionName: '1.2.3', manifestVersionCode: '7' });
+  ok(!badApp.ok && badApp.errors.some((e) => e.includes('APP_VERSION')), 'APP_VERSION 不一致报错');
+  const badManifest = validateVersions({ pkgVersion: '1.2.3', appVersion: '1.2.3', manifestVersionName: '1.2.0', manifestVersionCode: '7' });
+  ok(!badManifest.ok && badManifest.errors.some((e) => e.includes('versionName')), 'manifest 版本不一致报错');
+  const badPkg = validateVersions({ pkgVersion: 'abc', appVersion: 'abc', manifestVersionName: 'abc', manifestVersionCode: '1' });
+  ok(!badPkg.ok, '非法语义版本报错');
+  const badCode = validateVersions({ pkgVersion: '1.2.3', appVersion: '1.2.3', manifestVersionName: '1.2.3', manifestVersionCode: '0' });
+  ok(!badCode.ok && badCode.errors.some((e) => e.includes('versionCode')), 'versionCode 0 报错');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
