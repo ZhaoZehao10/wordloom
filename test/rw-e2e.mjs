@@ -755,6 +755,25 @@ ok(achPanel.countText === `${achPanel.info0.unlocked.length}/21`, `成就计数�
 ok(achPanel.closed, '成就面板可关闭');
 ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
 
+const filters = await evalJs(`(() => {
+  window.__rw.debugOpenAchievements();
+  const all = document.querySelectorAll('#ach-grid .ach-item').length;
+  const chips = document.querySelectorAll('#ach-filters .filter-chip').length;
+  document.querySelector('#ach-filters [data-group="mode"]').click();
+  const mode = document.querySelectorAll('#ach-grid .ach-item').length;
+  const active = document.querySelector('#ach-filters .filter-chip.active')?.dataset.group;
+  document.querySelector('#ach-filters [data-locked="1"]').click();
+  const lockedMode = document.querySelectorAll('#ach-grid .ach-item').length;
+  window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
+  const backAll = document.querySelectorAll('#ach-grid .ach-item').length;
+  window.__rw.debugCloseAchievements();
+  return { all, chips, mode, active, lockedMode, backAll };
+})()`);
+ok(filters.all === 21 && filters.backAll === 21, `成就总览显示 21 项（${filters.all}）`);
+ok(filters.chips === 8, `筛选 chips 8 个（${filters.chips}）`);
+ok(filters.mode === 3 && filters.active === 'mode', `模式筛选 3 项（${filters.mode}）`);
+ok(filters.lockedMode <= 3, `只看未解锁生效（${filters.lockedMode}）`);
+
 console.log('\n[24] 每周挑战 & 海报生涯成就');
 const weekly = await evalJs(`(async () => {
   const st = window.__rw.state;

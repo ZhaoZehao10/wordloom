@@ -310,3 +310,10 @@ button.ghost:hover { color: var(--text); }
   font-size: 12px; color: #8b96b8; padding: 4px 8px; border-bottom: 1px solid rgba(140,165,255,0.08); }
 .recent-row b { color: #dfe7ff; text-align: right; }
 .recent-empty { text-align: center; font-size: 12px; color: #5f6a88; padding: 8px; }
+
+/* ---------- 成就筛选 ---------- */
+
+.ach-filters { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px auto 10px; max-width: 480px; }
+.filter-chip { font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(140,165,255,0.22); background: rgba(20,27,51,0.4); color: #8b96b8; }
+.filter-chip.active { color: #0b1020; background: #ffcf4d; border-color: #ffcf4d; font-weight: 600; }

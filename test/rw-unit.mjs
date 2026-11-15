@@ -8,7 +8,7 @@
 //   D. 合批几何正确性（边缓冲 / 词球烘焙 / 顶点色回写）
 import { generateGraph } from '../public/rw/js/graph.mjs';
 import fs from 'node:fs';
-import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress } from '../public/rw/js/data.mjs';
+import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
   snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer,
@@ -1645,6 +1645,25 @@ section('AA. 生涯累计 & 里程碑');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerRounds: 99 })), ['抵达 1024'], '99 局不达成');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 50 })), ['抵达 1024', '五十胜'], '50 胜 → 五十胜');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 49 })), ['抵达 1024'], '49 胜不达成');
+}
+
+// ═══════════════════ AB. 成就筛选 ═══════════════════
+
+section('AB. 成就筛选');
+
+{
+  const all = Object.keys(ACHIEVEMENTS);
+  const grouped = ACHIEVEMENT_GROUPS.filter((g) => g.key !== 'all').flatMap((g) => g.keys);
+  eq(grouped.length, all.length, '分组覆盖全部成就');
+  eq(new Set(grouped).size, all.length, '每个成就只属于一组');
+  for (const k of all) ok(grouped.includes(k), `成就 ${k} 有分组`);
+
+  eq(filterAchievementKeys([], { group: 'all' }).length, all.length, '全部筛选');
+  eq(filterAchievementKeys([], { group: 'mode' }).length, 3, '模式组 3 个');
+  eq(filterAchievementKeys([], { group: 'career' }).length, 2, '生涯组 2 个');
+  eq(filterAchievementKeys(['fogWin'], { group: 'mode', onlyLocked: true }).join(','), 'timedWin,comboWin', '只看未解锁');
+  eq(filterAchievementKeys(['fogWin'], { group: 'mode' }).length, 3, '已解锁仍显示（未勾选）');
+  eq(filterAchievementKeys([], { group: 'unknown' }).length, all.length, '未知分组回落全部');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

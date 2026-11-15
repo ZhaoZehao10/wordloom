@@ -179,3 +179,24 @@ export function packProgress(collection, packKeys = BASE_PACK_KEYS) {
     return { key: k, name: p.name, got, total, pct: Math.round((got / Math.max(1, total)) * 100) };
   });
 }
+// ---------------- 成就分类 ----------------
+
+/** 成就分组（用于总览筛选；每个成就恰好属于一组）。 */
+export const ACHIEVEMENT_GROUPS = [
+  { key: 'all', name: '全部', keys: null },
+  { key: 'single', name: '单局', keys: ['reach', 'calm', 'pearls', 'stroll', 'egg'] },
+  { key: 'meta', name: '元进度', keys: ['collector', 'allDiffs', 'lexicon'] },
+  { key: 'pack', name: '词包', keys: ['packClassic', 'packPoetry', 'packGeek', 'packNature'] },
+  { key: 'streak', name: '打卡', keys: ['streak7', 'streak30', 'dailyWin', 'weekWin'] },
+  { key: 'mode', name: '模式', keys: ['fogWin', 'timedWin', 'comboWin'] },
+  { key: 'career', name: '生涯', keys: ['veteran', 'champion50'] },
+];
+
+/** 过滤成就 key 列表。 */
+export function filterAchievementKeys(unlocked, { group = 'all', onlyLocked = false } = {}) {
+  const set = new Set(Array.isArray(unlocked) ? unlocked : []);
+  const g = ACHIEVEMENT_GROUPS.find((x) => x.key === group) || ACHIEVEMENT_GROUPS[0];
+  return Object.keys(ACHIEVEMENTS).filter((k) =>
+    (!g.keys || g.keys.includes(k)) && (!onlyLocked || !set.has(k))
+  );
+}

@@ -7,7 +7,7 @@
 //   · 彩蛋：连点标题七次解除步数限制；键盘敲出 1024 触发音效与成就。
 import * as THREE from '../../vendor/three.module.min.js';
 import { VRButton } from '../../vendor/VRButton.js';
-import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, packProgress, SKINS, TIMBRES, DIFFICULTIES } from './data.mjs';
+import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, packProgress, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENT_GROUPS, filterAchievementKeys } from './data.mjs';
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
@@ -68,6 +68,7 @@ const state = {
   timedBest: parseTimedBest(localStorage.getItem('rw-timed-best') || ''), // 限时最佳（分难度）
   career: parseCareer(localStorage.getItem(CAREER_KEY) || ''), // 生涯累计
   monthOffset: 0,               // 月视图偏移（0=本月）
+  achFilter: { group: 'all', onlyLocked: false }, // 成就面板筛选
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
   dailyBonus: 0,                // 每日挑战的连续打卡奖励步数
@@ -285,7 +286,7 @@ window.__rw = {
   debugWeeklyPoster: () => buildWeeklyPosterDataURL(),
   debugWeeklyCsv: () => buildWeeklyCsv(),
   debugAchievementCard: () => buildAchievementCardDataURL(),
-  debugOpenAchievements: () => openAchievements(),
+  debugOpenAchievements: (filter) => openAchievements(filter),
   debugOpenStats: () => openStats(),
   debugStatsCard: () => buildStatsCardDataURL(),
   debugShareStats: () => buildShareStats(),
@@ -1126,20 +1127,38 @@ function openCollection() {
 
 function closeCollection() { $('coll').classList.add('hidden'); }
 
-/** 成就总览：展示全部成就及解锁状态。 */
-function openAchievements() {
+/** 成就总览：展示全部成就及解锁状态（支持分类/未解锁筛选）。 */
+function openAchievements(filter = null) {
+  if (filter) state.achFilter = { ...(state.achFilter || { group: 'all', onlyLocked: false }), ...filter };
+  const f = state.achFilter || { group: 'all', onlyLocked: false };
   const grid = $('ach-grid');
   if (!grid) return { total: 0, unlocked: 0 };
   const set = new Set(state.unlocked);
-  const entries = Object.entries(ACHIEVEMENTS);
-  grid.innerHTML = entries.map(([k, a]) =>
-    `<div class="ach-item ${set.has(k) ? 'got' : 'locked'}"><b>${a.icon}</b><span>${L(a.name)}</span></div>`
-  ).join('');
-  const unlocked = entries.filter(([k]) => set.has(k)).length;
-  $('ach-count').textContent = `${unlocked}/${entries.length}`;
+  const allKeys = Object.keys(ACHIEVEMENTS);
+  const keys = filterAchievementKeys(state.unlocked, f);
+  grid.innerHTML = keys.map((k) => {
+    const a = ACHIEVEMENTS[k];
+    return `<div class="ach-item ${set.has(k) ? 'got' : 'locked'}"><b>${a.icon}</b><span>${L(a.name)}</span></div>`;
+  }).join('');
+  // 筛选 chips
+  const fb = $('ach-filters');
+  if (fb) {
+    fb.innerHTML = ACHIEVEMENT_GROUPS.map((g) =>
+      `<button class="filter-chip ${f.group === g.key ? 'active' : ''}" data-group="${g.key}">${L(g.name)}</button>`
+    ).join('') + `<button class="filter-chip ${f.onlyLocked ? 'active' : ''}" data-locked="1">${L('只看未解锁')}</button>`;
+    fb.querySelectorAll('button').forEach((b) => {
+      b.onclick = () => {
+        sfx.ui();
+        if (b.dataset.locked) openAchievements({ onlyLocked: !f.onlyLocked });
+        else openAchievements({ group: b.dataset.group });
+      };
+    });
+  }
+  const unlocked = allKeys.filter((k) => set.has(k)).length;
+  $('ach-count').textContent = `${unlocked}/${allKeys.length}`;
   $('ach').classList.remove('hidden');
   sfx.ui();
-  return { total: entries.length, unlocked };
+  return { total: allKeys.length, unlocked, shown: keys.length, group: f.group, onlyLocked: !!f.onlyLocked };
 }
 
 function closeAchievements() { $('ach').classList.add('hidden'); }
