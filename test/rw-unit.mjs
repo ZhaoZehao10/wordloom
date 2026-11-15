@@ -31,6 +31,7 @@ import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
 import { validateVersions, releaseAssetsFor } from '../tools/release.mjs';
+import { parseIdent } from '../tools/git-publish.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP, encryptSave, decryptSave, isEncryptedSave, ENCRYPTED_APP } from '../public/rw/js/save.mjs';
@@ -1724,6 +1725,10 @@ section('AE. 发布准备');
   eq(assets.length, 3, '发布资产 3 个');
   eq(assets.map((a) => a.name).join(','), 'Wordloom-v9.9.9.apk,Wordloom-offline-v9.9.9.html,SHA256SUMS.txt', '资产命名规范');
   ok(assets.every((a) => a.type && a.kind), '资产类型完整');
+  const ident = parseIdent('author 张三 <a@b.c> 1700000000 +0800', 'author ');
+  eq(ident.name, '张三', '解析作者名');
+  eq(ident.email, 'a@b.c', '解析邮箱');
+  eq(ident.date, '2023-11-15T06:13:20+08:00', '解析带时区时间');
 }
 
 // ═══════════════════ AF. 存档加密 ═══════════════════

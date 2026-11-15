@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { publishBranchViaApi, publishTagViaApi } from './git-publish.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -97,11 +98,19 @@ if (process.argv[1] && process.argv[1].endsWith('release.mjs')) {
   console.log(`\n下一步：\n  git push origin main\n  git push origin ${tag}\n  或运行发布脚本创建 GitHub Release（资产：dist/Wordloom-${tag}.apk 等）`);
 
   if (args.has('--publish')) {
+    const token = githubToken();
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
     const okMain = tryRun('git', ['push', 'origin', 'main']);
-    if (!okMain) { console.error('❌ 分支推送失败，请检查网络/凭据后重试'); process.exit(1); }
+    if (!okMain) {
+      console.log('⚠️ git push 分支失败，改用 GitHub API 推送…');
+      await publishBranchViaApi({ owner: 'zhaozehao10', name: 'wordloom', token, root: ROOT, head });
+    }
     const okTag = tryRun('git', ['push', 'origin', tag]);
-    if (!okTag) { console.error('❌ 标签推送失败，请检查网络/凭据后重试'); process.exit(1); }
-    await publishRelease(tag, v.pkgVersion);
+    if (!okTag) {
+      console.log('⚠️ git push 标签失败，改用 GitHub API 推送标签…');
+      await publishTagViaApi({ owner: 'zhaozehao10', name: 'wordloom', token, root: ROOT, tag });
+    }
+    await publishRelease(tag, v.pkgVersion, token);
   }
 }
 
@@ -131,13 +140,12 @@ async function githubApi(token, method, url, payload) {
   return json;
 }
 
-async function publishRelease(tag, version) {
+async function publishRelease(tag, version, token) {
   const owner = 'zhaozehao10';
   const name = 'wordloom';
   const notesPath = path.join(ROOT, 'docs', `RELEASE-NOTES-${version}.md`);
   if (!fs.existsSync(notesPath)) throw new Error(`缺少发布说明：${notesPath}`);
   const body = fs.readFileSync(notesPath, 'utf8');
-  const token = githubToken();
   let rel;
   try { rel = await githubApi(token, 'GET', `/repos/${owner}/${name}/releases/tags/${tag}`); }
   catch {
