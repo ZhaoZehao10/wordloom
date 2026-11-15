@@ -203,3 +203,5 @@ export function filterAchievementKeys(unlocked, { group = 'all', onlyLocked = fa
     return (!g.keys || g.keys.includes(k)) && (!onlyLocked || !set.has(k)) && (!q || hay.includes(q));
   });
 }
+/** 应用版本（与 package.json 保持一致，单测校验）。 */
+export const APP_VERSION = '1.4.6';

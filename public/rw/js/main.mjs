@@ -7,7 +7,7 @@
 //   · 彩蛋：连点标题七次解除步数限制；键盘敲出 1024 触发音效与成就。
 import * as THREE from '../../vendor/three.module.min.js';
 import { VRButton } from '../../vendor/VRButton.js';
-import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, packProgress, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENT_GROUPS, filterAchievementKeys } from './data.mjs';
+import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, packProgress, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENT_GROUPS, filterAchievementKeys, APP_VERSION } from './data.mjs';
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
@@ -288,6 +288,8 @@ window.__rw = {
   debugAchievementCard: () => buildAchievementCardDataURL(),
   debugOpenAchievements: (filter) => openAchievements(filter),
   debugOpenStats: () => openStats(),
+  debugOpenAbout: () => openAbout(),
+  debugCloseAbout: () => { closeAbout(); return about.classList.contains('hidden'); },
   debugStatsCard: () => buildStatsCardDataURL(),
   debugShareStats: () => buildShareStats(),
   debugShareAch: () => buildShareAch(),
@@ -1219,6 +1221,40 @@ function openStats() {
 
 function closeStats() { $('stats').classList.add('hidden'); }
 
+/** 本地存储占用（UTF-16，单位 KB）。 */
+function storageUsageKB() {
+  try {
+    let bytes = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const v = localStorage.getItem(k) || '';
+      bytes += (k.length + v.length) * 2;
+    }
+    return Math.round((bytes / 1024) * 10) / 10;
+  } catch { return 0; }
+}
+
+/** 关于面板：版本 / 许可 / 组件 / 存储占用。 */
+function openAbout() {
+  const body = $('about-body');
+  if (!body) return { version: APP_VERSION, storageKB: 0 };
+  const kb = storageUsageKB();
+  const rows = [
+    [L('版本'), APP_VERSION],
+    [L('许可'), 'MIT'],
+    [L('组件'), 'three.js r160 · qrcode-generator 2.0.4（均为 MIT）'],
+    [L('存储占用'), `${kb} KB`],
+  ];
+  body.innerHTML = rows.map(([k, v]) => `<div class="about-row"><span>${k}</span><b>${v}</b></div>`).join('') +
+    `<div class="about-row"><span>${L('在线试玩')}</span><a href="${SITE_URL}" target="_blank" rel="noopener">${SITE_URL.replace('https://', '')}</a></div>` +
+    `<div class="about-row"><span>${L('作者')}</span><a href="https://github.com/zhaozehao10" target="_blank" rel="noopener">github.com/zhaozehao10</a></div>`;
+  $('about').classList.remove('hidden');
+  sfx.ui();
+  return { version: APP_VERSION, storageKB: kb };
+}
+
+function closeAbout() { $('about').classList.add('hidden'); }
+
 /** 在 canvas 上绘制二维码（白底黑块）。返回模块数（失败 0）。 */
 function drawQr(c, text, x, y, size) {
   try {
@@ -1819,6 +1855,8 @@ function wire2D() {
   const achSearch = $('ach-search');
   if (achSearch) achSearch.oninput = () => openAchievements();
   $('stats-open').onclick = () => { openStats(); };
+  $('about-open').onclick = () => { openAbout(); };
+  $('about-close').onclick = () => { sfx.ui(); closeAbout(); };
   $('stats-close').onclick = () => { sfx.ui(); closeStats(); };
   $('stats-export').onclick = () => downloadStatsCard();
   $('stats-share').onclick = () => copyShare(buildShareStats());
@@ -1917,6 +1955,10 @@ function wire2D() {
     }
   };
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      for (const id of ['ach', 'stats', 'about', 'month', 'coll']) { const el = $(id); if (el) el.classList.add('hidden'); }
+      return;
+    }
     if (e.key === 'r' || e.key === 'R') { startRound('normal'); return; }
     if (e.key === 'm' || e.key === 'M') { $('mute-btn').click(); return; }
     state.eggTyped = (state.eggTyped + e.key).slice(-4);

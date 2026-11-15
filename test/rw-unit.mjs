@@ -8,7 +8,7 @@
 //   D. 合批几何正确性（边缓冲 / 词球烘焙 / 顶点色回写）
 import { generateGraph } from '../public/rw/js/graph.mjs';
 import fs from 'node:fs';
-import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys } from '../public/rw/js/data.mjs';
+import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys, APP_VERSION } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
   snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer,
@@ -1679,6 +1679,16 @@ section('AB. 成就筛选');
   eq(completionRate(30, 21), 100, '超出上限封顶 100');
   eq(completionRate(1, 0), 0, '总数为 0');
   eq(completionRate(NaN, 21), 0, 'NaN 安全');
+}
+
+// ═══════════════════ AC. 版本一致性 ═══════════════════
+
+section('AC. 版本一致性');
+
+{
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  eq(APP_VERSION, pkg.version, 'APP_VERSION 与 package.json 一致');
+  ok(/^\d+\.\d+\.\d+$/.test(APP_VERSION), `版本号语义化（${APP_VERSION}）`);
 }
 
 // ═══════════════════ 汇总 ═══════════════════

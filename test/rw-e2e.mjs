@@ -1035,7 +1035,21 @@ ok(career.rounds === 100 && career.wins === 50, `生涯累计递增（${career.r
 ok(career.vet && career.champ, '100 局解锁「百局行者」、50 胜解锁「五十胜」');
 ok(career.text.includes('100 局') && career.text.includes('50 胜'), `统计面板展示生涯累计「${career.text}」`);
 
-console.log('\n[32] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[32] 关于面板 & Esc 关闭');
+const about = await evalJs(`(() => {
+  const info = window.__rw.debugOpenAbout();
+  const text = document.getElementById('about-body').textContent;
+  const closed = window.__rw.debugCloseAbout();
+  window.__rw.debugOpenAbout();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  const escClosed = document.getElementById('about').classList.contains('hidden');
+  return { info, text, closed, escClosed };
+})()`);
+ok(about.info.version === '1.4.6', `关于面板显示版本 ${about.info.version}`);
+ok(about.text.includes('MIT') && about.text.includes('three.js') && about.text.includes('KB'), '关于面板包含许可/组件/存储');
+ok(about.closed && about.escClosed, '关于面板可关闭（按钮与 Esc）');
+
+console.log('\n[33] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
