@@ -773,6 +773,20 @@ ok(filters.all === 21 && filters.backAll === 21, `成就总览显示 21 项（${
 ok(filters.chips === 8, `筛选 chips 8 个（${filters.chips}）`);
 ok(filters.mode === 3 && filters.active === 'mode', `模式筛选 3 项（${filters.mode}）`);
 ok(filters.lockedMode <= 3, `只看未解锁生效（${filters.lockedMode}）`);
+const search = await evalJs(`(() => {
+  window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
+  const input = document.getElementById('ach-search');
+  input.value = '雾';
+  input.dispatchEvent(new Event('input'));
+  const fog = document.querySelectorAll('#ach-grid .ach-item').length;
+  input.value = '';
+  input.dispatchEvent(new Event('input'));
+  const all = document.querySelectorAll('#ach-grid .ach-item').length;
+  window.__rw.debugCloseAchievements();
+  return { fog, all };
+})()`);
+ok(search.fog === 1, `搜索「雾」命中 1 项（${search.fog}）`);
+ok(search.all === 21, `清空搜索恢复 21 项（${search.all}）`);
 
 console.log('\n[24] 每周挑战 & 海报生涯成就');
 const weekly = await evalJs(`(async () => {

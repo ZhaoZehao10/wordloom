@@ -1664,6 +1664,11 @@ section('AB. 成就筛选');
   eq(filterAchievementKeys(['fogWin'], { group: 'mode', onlyLocked: true }).join(','), 'timedWin,comboWin', '只看未解锁');
   eq(filterAchievementKeys(['fogWin'], { group: 'mode' }).length, 3, '已解锁仍显示（未勾选）');
   eq(filterAchievementKeys([], { group: 'unknown' }).length, all.length, '未知分组回落全部');
+  eq(filterAchievementKeys([], { query: '雾' }).length, 1, '中文搜索「雾」');
+  eq(filterAchievementKeys([], { query: 'win' }).length, 5, '键名搜索 win');
+  eq(filterAchievementKeys([], { query: 'WIN' }).length, 5, '搜索不区分大小写');
+  eq(filterAchievementKeys([], { query: 'zzz' }).length, 0, '无结果');
+  eq(filterAchievementKeys([], { group: 'mode', query: 'timed' }).length, 1, '分组+搜索交集');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

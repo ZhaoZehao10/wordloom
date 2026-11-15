@@ -317,3 +317,9 @@ button.ghost:hover { color: var(--text); }
 .filter-chip { font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
   border: 1px solid rgba(140,165,255,0.22); background: rgba(20,27,51,0.4); color: #8b96b8; }
 .filter-chip.active { color: #0b1020; background: #ffcf4d; border-color: #ffcf4d; font-weight: 600; }
+
+/* ---------- 成就搜索 ---------- */
+
+.ach-search { display: block; width: 260px; margin: 2px auto 8px; padding: 8px 14px; border-radius: 999px;
+  border: 1px solid rgba(140,165,255,0.24); background: rgba(20,27,51,0.5); color: #dfe7ff; font-size: 13px; outline: none; }
+.ach-search:focus { border-color: rgba(255,207,77,0.6); }

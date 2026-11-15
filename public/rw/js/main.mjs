@@ -1130,7 +1130,8 @@ function closeCollection() { $('coll').classList.add('hidden'); }
 /** 成就总览：展示全部成就及解锁状态（支持分类/未解锁筛选）。 */
 function openAchievements(filter = null) {
   if (filter) state.achFilter = { ...(state.achFilter || { group: 'all', onlyLocked: false }), ...filter };
-  const f = state.achFilter || { group: 'all', onlyLocked: false };
+  const searchEl = $('ach-search');
+  const f = { ...(state.achFilter || { group: 'all', onlyLocked: false }), query: searchEl ? searchEl.value : '' };
   const grid = $('ach-grid');
   if (!grid) return { total: 0, unlocked: 0 };
   const set = new Set(state.unlocked);
@@ -1806,6 +1807,8 @@ function wire2D() {
   $('coll-open').onclick = () => { openCollection(); };
   $('coll-close').onclick = () => { sfx.ui(); closeCollection(); };
   $('ach-open').onclick = () => { openAchievements(); };
+  const achSearch = $('ach-search');
+  if (achSearch) achSearch.oninput = () => openAchievements();
   $('stats-open').onclick = () => { openStats(); };
   $('stats-close').onclick = () => { sfx.ui(); closeStats(); };
   $('stats-export').onclick = () => downloadStatsCard();

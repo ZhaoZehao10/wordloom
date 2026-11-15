@@ -193,10 +193,13 @@ export const ACHIEVEMENT_GROUPS = [
 ];
 
 /** 过滤成就 key 列表。 */
-export function filterAchievementKeys(unlocked, { group = 'all', onlyLocked = false } = {}) {
+export function filterAchievementKeys(unlocked, { group = 'all', onlyLocked = false, query = '' } = {}) {
   const set = new Set(Array.isArray(unlocked) ? unlocked : []);
   const g = ACHIEVEMENT_GROUPS.find((x) => x.key === group) || ACHIEVEMENT_GROUPS[0];
-  return Object.keys(ACHIEVEMENTS).filter((k) =>
-    (!g.keys || g.keys.includes(k)) && (!onlyLocked || !set.has(k))
-  );
+  const q = typeof query === 'string' ? query.trim().toLowerCase() : '';
+  return Object.keys(ACHIEVEMENTS).filter((k) => {
+    const a = ACHIEVEMENTS[k];
+    const hay = `${a.name} ${k}`.toLowerCase();
+    return (!g.keys || g.keys.includes(k)) && (!onlyLocked || !set.has(k)) && (!q || hay.includes(q));
+  });
 }

@@ -75,6 +75,7 @@ export const EN = {
   '模式': 'Modes',
   '生涯': 'Career',
   '只看未解锁': 'Locked only',
+  '搜索成就': 'Search achievements',
   '📊 统计': '📊 Stats',
   '生涯统计': 'Career stats',
   '总局数': 'Games',
@@ -219,6 +220,10 @@ export function applyDomI18n(doc, lang) {
   for (const el of doc.querySelectorAll('[data-i18n-html]')) {
     const zh = el.getAttribute('data-i18n-html');
     el.innerHTML = l === 'en' ? tr(zh, 'en') : zh;
+  }
+  for (const el of doc.querySelectorAll('[data-i18n-placeholder]')) {
+    const zh = el.getAttribute('data-i18n-placeholder');
+    el.placeholder = l === 'en' ? tr(zh, 'en') : zh;
   }
   return l;
 }
