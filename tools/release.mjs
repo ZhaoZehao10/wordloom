@@ -85,7 +85,7 @@ if (process.argv[1] && process.argv[1].endsWith('release.mjs')) {
   run('node', [path.join('tools', 'release-checksums.mjs')]);
 
   const tag = `v${v.pkgVersion}`;
-  if (args.has('--tag')) {
+  if (args.has('--tag') || args.has('--publish')) {
     try {
       execFileSync('git', ['rev-parse', '--verify', `refs/tags/${tag}`], { cwd: ROOT, stdio: 'ignore' });
       console.log(`ℹ️ 标签 ${tag} 已存在，跳过创建`);
