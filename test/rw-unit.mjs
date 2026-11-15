@@ -33,7 +33,7 @@ import { sha256, buildChecksumList, renderChecksums } from '../tools/release-che
 import { validateVersions } from '../tools/release.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
-import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP } from '../public/rw/js/save.mjs';
+import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP, encryptSave, decryptSave, isEncryptedSave, ENCRYPTED_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
 import { tr, normalizeLang, EN } from '../public/rw/js/i18n.mjs';
@@ -1720,6 +1720,27 @@ section('AE. 发布准备');
   ok(!badPkg.ok, '非法语义版本报错');
   const badCode = validateVersions({ pkgVersion: '1.2.3', appVersion: '1.2.3', manifestVersionName: '1.2.3', manifestVersionCode: '0' });
   ok(!badCode.ok && badCode.errors.some((e) => e.includes('versionCode')), 'versionCode 0 报错');
+}
+
+// ═══════════════════ AF. 存档加密 ═══════════════════
+
+section('AF. 存档加密');
+
+{
+  const plain = '{"best":123,"collection":["光"]}';
+  const enc = await encryptSave(plain, 'pass1234');
+  const obj = JSON.parse(enc);
+  eq(obj.app, ENCRYPTED_APP, '加密存档标记');
+  ok(isEncryptedSave(enc), '识别加密存档');
+  ok(!isEncryptedSave(plain), '普通存档不误判');
+  eq(await decryptSave(enc, 'pass1234'), plain, '正确密码解密还原');
+
+  const wrong = await decryptSave(enc, 'wrong').then(() => null).catch((e) => e.message);
+  ok(wrong && wrong.includes('密码错误'), '错误密码被拒绝');
+  await encryptSave('x', '123').then(() => { throw new Error('should fail'); }).catch((e) => ok(e.message.includes('至少 4 位'), '短密码被拒绝'));
+  const tampered = JSON.parse(enc); tampered.data = tampered.data.slice(0, -4) + 'AAAA';
+  const tamperErr = await decryptSave(JSON.stringify(tampered), 'pass1234').then(() => null).catch((e) => e.message);
+  ok(tamperErr && tamperErr.includes('密码错误'), '篡改密文被拒绝');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

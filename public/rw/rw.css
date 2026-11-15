@@ -343,3 +343,9 @@ button.ghost:hover { color: var(--text); }
 .about-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 4px; border-bottom: 1px solid rgba(140,165,255,0.08); }
 .about-row b { color: #dfe7ff; font-weight: 500; }
 .about-row a { color: #6cd0ff; text-decoration: none; }
+
+/* ---------- 存档密码 ---------- */
+
+.save-pass { width: 180px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(140,165,255,0.24);
+  background: rgba(20,27,51,0.5); color: #dfe7ff; font-size: 12px; outline: none; }
+.save-pass:focus { border-color: rgba(255,207,77,0.6); }

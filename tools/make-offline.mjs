@@ -36,7 +36,7 @@ function stripModule(src) {
   return src
     .replace(/^import\s+[^;]+?;\s*$/gm, '')
     .replace(/^import\s+[^;]+?from\s*['"][^'"]+['"];?\s*$/gm, '')
-    .replace(/^export\s+(?=(const|let|var|function|class)\s)/gm, '')
+    .replace(/^export\s+(?=(const|let|var|function|class|async function)\s)/gm, '')
     .replace(/^export\s*\{[^}]*\};?\s*$/gm, '')
     .replace(/^export\s+default\s+/gm, '');
 }

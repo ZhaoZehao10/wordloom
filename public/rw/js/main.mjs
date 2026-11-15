@@ -28,7 +28,7 @@ import {
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
 import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, streakDays, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
-import { exportSave, importSave, resetValues } from './save.mjs';
+import { exportSave, importSave, resetValues, encryptSave, decryptSave, isEncryptedSave } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
 import { normalizeMoveMode, nextMoveMode } from './rules.mjs';
@@ -295,6 +295,11 @@ window.__rw = {
   debugShareStats: () => buildShareStats(),
   debugShareAch: () => buildShareAch(),
   debugShareWeekly: () => buildShareWeekly(),
+  debugEncryptSave: (pwd) => encryptSave(exportSave(collectSave()), pwd),
+  debugDecryptSave: async (text, pwd) => {
+    try { return { ok: true, raw: await decryptSave(text, pwd) }; }
+    catch (e) { return { ok: false, error: e && e.message ? e.message : '解密失败' }; }
+  },
   debugQr: () => { const q = qrLib(0, 'M'); q.addData(SITE_URL); q.make(); return { modules: q.getModuleCount(), dark: q.isDark(0, 0) }; },
   debugCloseStats: () => { closeStats(); return stats.classList.contains('hidden'); },
   debugCloseAchievements: () => { closeAchievements(); return ach.classList.contains('hidden'); },
@@ -1519,18 +1524,22 @@ function collectSave() {
   };
 }
 
-function exportSaveFile() {
+async function exportSaveFile() {
   try {
     const text = exportSave(collectSave());
-    const blob = new Blob([text], { type: 'application/json' });
+    const pwd = ($('save-pass')?.value || '').trim();
+    const out = pwd ? await encryptSave(text, pwd) : text;
+    const blob = new Blob([out], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `拾径存档-${dailyKey()}.json`;
+    a.download = pwd ? `拾径存档-${dailyKey()}-加密.json` : `拾径存档-${dailyKey()}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  } catch { /* 无下载能力时静默 */ }
+  } catch (e) {
+    alert(`导出失败：${e && e.message ? e.message : '未知错误'}`);
+  }
 }
 
 /** 把校验过的存档写入运行时状态与 localStorage。 */
@@ -1576,8 +1585,18 @@ function importSaveFile(ev) {
   const f = ev?.target?.files?.[0];
   if (!f) return;
   const reader = new FileReader();
-  reader.onload = () => {
-    const r = importSave(String(reader.result || ''));
+  reader.onload = async () => {
+    let raw = String(reader.result || '');
+    if (isEncryptedSave(raw)) {
+      const pwd = ($('save-pass')?.value || '').trim() || (prompt('输入存档密码') || '');
+      try {
+        raw = await decryptSave(raw, pwd);
+      } catch (e) {
+        alert(`解密失败：${e && e.message ? e.message : '密码错误'}`);
+        return;
+      }
+    }
+    const r = importSave(raw);
     if (!r.ok) {
       alert(`导入失败：${r.error}`);
       return;

@@ -476,6 +476,15 @@ ok(save.parsed.progress && save.parsed.progress.achievements.length === 2, '存�
 ok(save.ok && save.restored.best === 777 && save.restored.coll === 3 && save.restored.ach === 2, '导入恢复最佳分/词集/成就', JSON.stringify(save.restored));
 ok(save.badOk === false, '其它应用的存档被拒绝');
 ok(save.didReset && save.afterReset.best === 0 && save.afterReset.coll === 0 && save.afterReset.ach === 0, '重置清空进度（含成就）');
+const crypt = await evalJs(`(async () => {
+  const enc = await window.__rw.debugEncryptSave('pass1234');
+  const good = await window.__rw.debugDecryptSave(enc, 'pass1234');
+  const bad = await window.__rw.debugDecryptSave(enc, 'wrong');
+  return { app: JSON.parse(enc).app, goodOk: good.ok, innerApp: good.ok ? JSON.parse(good.raw).app : '', badOk: bad.ok, err: bad.error };
+})()`);
+ok(crypt.app.includes('encrypted'), '加密存档类型标记');
+ok(crypt.goodOk && crypt.innerApp === 'wordloom-vr', '密码正确可解密回普通存档');
+ok(!crypt.badOk && String(crypt.err).includes('密码'), '错误密码被拒绝');
 
 console.log('\n[16] 存储脏数据注入（健壮性）');
 await evalJs(`(() => {

@@ -147,3 +147,63 @@ export function resetValues() {
     'rw-achievements': '[]',
   };
 }
+
+// ---------------- 存档加密（可选密码保护） ----------------
+
+export const ENCRYPTED_APP = 'wordloom-vr-encrypted';
+export const ENCRYPTED_VERSION = 1;
+const PBKDF2_ITERATIONS = 150000;
+
+const b64 = (u8) => btoa(String.fromCharCode(...u8));
+const unb64 = (s) => new Uint8Array(atob(s).split('').map((c) => c.charCodeAt(0)));
+
+async function deriveKey(password, salt) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    base,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+/** 把明文存档加密为带密码的 JSON 字符串。 */
+export async function encryptSave(rawText, password) {
+  if (typeof rawText !== 'string' || !rawText) throw new Error('存档内容为空');
+  if (typeof password !== 'string' || password.length < 4) throw new Error('密码至少 4 位');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(password, salt);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(rawText));
+  return JSON.stringify({
+    app: ENCRYPTED_APP,
+    version: ENCRYPTED_VERSION,
+    kdf: { name: 'PBKDF2', iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    salt: b64(salt),
+    iv: b64(iv),
+    data: b64(new Uint8Array(ct)),
+  });
+}
+
+/** 解密带密码的存档，返回明文 JSON 字符串；密码错误会抛错。 */
+export async function decryptSave(rawText, password) {
+  let d;
+  try { d = JSON.parse(rawText); } catch { throw new Error('不是合法的加密存档'); }
+  if (!d || d.app !== ENCRYPTED_APP) throw new Error('不是加密存档');
+  if (d.version !== ENCRYPTED_VERSION) throw new Error('加密存档版本不支持');
+  if (typeof password !== 'string' || password.length < 4) throw new Error('密码至少 4 位');
+  try {
+    const key = await deriveKey(password, unb64(d.salt));
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(d.iv) }, key, unb64(d.data));
+    return new TextDecoder().decode(pt);
+  } catch {
+    throw new Error('密码错误或存档已损坏');
+  }
+}
+
+/** 判断文本是否为加密存档。 */
+export function isEncryptedSave(rawText) {
+  try { const d = JSON.parse(rawText); return !!d && d.app === ENCRYPTED_APP; } catch { return false; }
+}
