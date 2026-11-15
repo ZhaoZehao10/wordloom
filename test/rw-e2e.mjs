@@ -773,6 +773,16 @@ ok(filters.all === 21 && filters.backAll === 21, `成就总览显示 21 项（${
 ok(filters.chips === 8, `筛选 chips 8 个（${filters.chips}）`);
 ok(filters.mode === 3 && filters.active === 'mode', `模式筛选 3 项（${filters.mode}）`);
 ok(filters.lockedMode <= 3, `只看未解锁生效（${filters.lockedMode}）`);
+const ring = await evalJs(`(() => {
+  const r = window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
+  const pct = document.getElementById('ach-pct').textContent;
+  const label = document.getElementById('ach-progress-label').textContent;
+  const bg = document.getElementById('ach-ring').style.background;
+  window.__rw.debugCloseAchievements();
+  return { r, pct, label, bg };
+})()`);
+ok(ring.pct === `${ring.r.pct}%`, `进度环百分比 ${ring.pct}`);
+ok(ring.label.includes('/21') && ring.bg.includes('conic-gradient'), `进度环与标签渲染（${ring.label}）`);
 const search = await evalJs(`(() => {
   window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
   const input = document.getElementById('ach-search');
@@ -906,6 +916,25 @@ ok(statsPanel.items === 10, `统计面板 10 项（${statsPanel.items}）`);
 ok(statsPanel.text.includes('50%') && statsPanel.text.includes('30'), '面板显示胜率与最佳');
 ok(statsPanel.closed, '统计面板可关闭');
 ok(/^\d{4}-\d{2}$/.test(statsPanel.nextLabel) && statsPanel.nextLabel !== statsPanel.curLabel, `月视图可翻到下个月（${statsPanel.curLabel} → ${statsPanel.nextLabel}）`);
+
+const streakMonth = await evalJs(`(() => {
+  const st = window.__rw.state;
+  const today = window.__rw.dailyInfo().key;
+  const rows = [];
+  for (let i = 2; i >= 0; i--) {
+    const d = new Date(new Date(today + 'T00:00:00').getTime() - i * 86400000);
+    const p = (n) => String(n).padStart(2, '0');
+    rows.push({ key: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), score: 5, win: false });
+  }
+  window.__rw.debugSetDailyHistory(rows);
+  window.__rw.debugOpenMonth(0);
+  const cells = document.querySelectorAll('#month-grid .month-cell.streak').length;
+  const summary = document.getElementById('month-summary').textContent;
+  window.__rw.debugCloseMonth();
+  return { cells, summary };
+})()`);
+ok(streakMonth.cells === 3, `月视图高亮连续 3 天（${streakMonth.cells}）`);
+ok(streakMonth.summary.includes('连续 3 天'), `月摘要显示连续天数「${streakMonth.summary}」`);
 const qr = await evalJs(`(() => { const q = window.__rw.debugQr(); const card = window.__rw.debugStatsCard(); return { q, len: card.length, prefix: card.slice(0, 22) }; })()`);
 ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
 ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);

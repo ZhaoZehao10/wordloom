@@ -287,3 +287,10 @@ export function updateCareer(career, { win = false, words = 0, timed = false, fo
     fogRounds: num(base.fogRounds) + (fog ? 1 : 0),
   };
 }
+/** 成就完成度（0~100 整数）。 */
+export function completionRate(unlocked, total) {
+  const u = Number.isFinite(unlocked) ? Math.max(0, unlocked) : 0;
+  const t = Number.isFinite(total) ? Math.max(0, total) : 0;
+  if (t <= 0) return 0;
+  return Math.min(100, Math.round((u / t) * 100));
+}

@@ -24,7 +24,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, streakDays, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -40,7 +40,7 @@ import {
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
-  parseTimedBest, updateTimedBest, recentRuns, parseCareer, updateCareer,
+  parseTimedBest, updateTimedBest, recentRuns, parseCareer, updateCareer, completionRate,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1645,6 +1645,10 @@ section('AA. 生涯累计 & 里程碑');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerRounds: 99 })), ['抵达 1024'], '99 局不达成');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 50 })), ['抵达 1024', '五十胜'], '50 胜 → 五十胜');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 49 })), ['抵达 1024'], '49 胜不达成');
+  eq(streakDays([], '2026-11-15').length, 0, '空 streakDays');
+  eq(streakDays([{ key: '2026-11-13' }, { key: '2026-11-14' }, { key: '2026-11-15' }], '2026-11-15').join(','), '2026-11-13,2026-11-14,2026-11-15', '连续三天列表');
+  eq(streakDays([{ key: '2026-11-13' }, { key: '2026-11-15' }], '2026-11-15').join(','), '2026-11-15', '断档只保留今天');
+  eq(streakDays([{ key: '2026-11-14' }], '2026-11-15').length, 1, '今天未打从昨天算');
 }
 
 // ═══════════════════ AB. 成就筛选 ═══════════════════
@@ -1669,6 +1673,12 @@ section('AB. 成就筛选');
   eq(filterAchievementKeys([], { query: 'WIN' }).length, 5, '搜索不区分大小写');
   eq(filterAchievementKeys([], { query: 'zzz' }).length, 0, '无结果');
   eq(filterAchievementKeys([], { group: 'mode', query: 'timed' }).length, 1, '分组+搜索交集');
+  eq(completionRate(0, 21), 0, '完成度 0');
+  eq(completionRate(5, 21), 24, '完成度四舍五入');
+  eq(completionRate(21, 21), 100, '完成度 100');
+  eq(completionRate(30, 21), 100, '超出上限封顶 100');
+  eq(completionRate(1, 0), 0, '总数为 0');
+  eq(completionRate(NaN, 21), 0, 'NaN 安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

@@ -329,3 +329,11 @@ export function weeklyBest(history) {
   }
   return best;
 }
+/** 当前连续打卡的日期键列表（从早到晚）。 */
+export function streakDays(history, todayKey) {
+  const set = new Set((Array.isArray(history) ? history : []).map((d) => d && d.key).filter(Boolean));
+  let cursor = set.has(todayKey) ? todayKey : addDays(todayKey, -1);
+  const out = [];
+  while (set.has(cursor)) { out.push(cursor); cursor = addDays(cursor, -1); }
+  return out.reverse();
+}

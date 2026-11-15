@@ -323,3 +323,13 @@ button.ghost:hover { color: var(--text); }
 .ach-search { display: block; width: 260px; margin: 2px auto 8px; padding: 8px 14px; border-radius: 999px;
   border: 1px solid rgba(140,165,255,0.24); background: rgba(20,27,51,0.5); color: #dfe7ff; font-size: 13px; outline: none; }
 .ach-search:focus { border-color: rgba(255,207,77,0.6); }
+
+/* ---------- 成就进度环 ---------- */
+
+.ach-head { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 2px 0 8px; }
+.ach-ring { width: 78px; height: 78px; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center;
+  background: conic-gradient(#ffcf4d 0% 0%, rgba(140,165,255,0.16) 0% 100%); }
+.ach-ring::before { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: #0b1020; }
+.ach-ring b { position: relative; z-index: 1; font-size: 16px; color: #ffcf4d; }
+
+.month-cell.streak { box-shadow: inset 0 0 0 2px rgba(255,207,77,0.75); }

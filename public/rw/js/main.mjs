@@ -23,11 +23,11 @@ import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
-  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, parseCareer, updateCareer, CAREER_KEY, ACHIEVEMENTS_KEY,
+  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, parseCareer, updateCareer, CAREER_KEY, completionRate, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, streakDays, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -1156,10 +1156,18 @@ function openAchievements(filter = null) {
     });
   }
   const unlocked = allKeys.filter((k) => set.has(k)).length;
+  // 完成度进度环
+  const pct = completionRate(unlocked, allKeys.length);
+  const ring = $('ach-ring');
+  if (ring) ring.style.background = `conic-gradient(#ffcf4d 0% ${pct}%, rgba(140,165,255,0.16) ${pct}% 100%)`;
+  const pctEl = $('ach-pct');
+  if (pctEl) pctEl.textContent = `${pct}%`;
+  const labelEl = $('ach-progress-label');
+  if (labelEl) labelEl.textContent = `${L('已解锁')} ${unlocked}/${allKeys.length}`;
   $('ach-count').textContent = `${unlocked}/${allKeys.length}`;
   $('ach').classList.remove('hidden');
   sfx.ui();
-  return { total: allKeys.length, unlocked, shown: keys.length, group: f.group, onlyLocked: !!f.onlyLocked };
+  return { total: allKeys.length, unlocked, pct, shown: keys.length, group: f.group, onlyLocked: !!f.onlyLocked };
 }
 
 function closeAchievements() { $('ach').classList.add('hidden'); }
@@ -1647,7 +1655,8 @@ function openMonth(offset = state.monthOffset || 0) {
   if (monthLabel) monthLabel.textContent = `${g.year}-${String(g.month).padStart(2, '0')}`;
   const best = dailyBest(state.dailyHistory);
   const wBest = weeklyBest(state.weeklyHistory);
-  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}` + (best.score > 0 ? ` · ${L('历史最佳')} ${best.score}` : '') + (wBest.score > 0 || state.weeklyHistory.length > 0 ? ` · ${L('周最佳')} ${wBest.score}` : '');
+  const streak = new Set(streakDays(state.dailyHistory, dailyKey()));
+  $('month-summary').textContent = `${L('本月')} ${sum.played} ${L('天')} · ${L('胜')} ${sum.wins} · ${L('最佳')} ${sum.best}` + (best.score > 0 ? ` · ${L('历史最佳')} ${best.score}` : '') + (wBest.score > 0 || state.weeklyHistory.length > 0 ? ` · ${L('周最佳')} ${wBest.score}` : '') + (streak.size > 0 ? ` · ${L('连续')} ${streak.size} ${L('天')}` : '');
   const grid = $('month-grid');
   grid.innerHTML = '';
   const zh = ['日', '一', '二', '三', '四', '五', '六'];
@@ -1663,7 +1672,7 @@ function openMonth(offset = state.monthOffset || 0) {
       const el = document.createElement('div');
       if (!cell) { el.className = 'month-cell empty'; }
       else {
-        el.className = 'month-cell' + (cell.played ? ' played' : '') + (cell.win ? ' win' : '');
+        el.className = 'month-cell' + (cell.played ? ' played' : '') + (cell.win ? ' win' : '') + (streak.has(cell.key) ? ' streak' : '');
         el.innerHTML = '<span class="d">' + cell.day + '</span><span class="s">' + (cell.played ? cell.score : '·') + '</span>';
       }
       grid.appendChild(el);
