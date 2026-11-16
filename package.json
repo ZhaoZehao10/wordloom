@@ -1,6 +1,6 @@
 {
   "name": "wordloom-vr",
-  "version": "1.4.19",
+  "version": "1.4.20",
   "private": true,
   "type": "module",
   "description": "拾径（Wordloom）— Pico Neo3 WebXR 词图漫游：在词与线的星座间行走，抵达 1024",
@@ -29,6 +29,7 @@
     "release:prepare": "node tools/release.mjs",
     "release:publish": "node tools/release.mjs --publish",
     "audit": "node tools/audit.mjs",
+    "audit:deps": "node tools/deps-audit.mjs",
     "report:perf:open": "node tools/perf-report.mjs && start dist/perf-report.html",
     "build:apk": "powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1",
     "build": "node tools/make-offline.mjs && powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1"

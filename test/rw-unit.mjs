@@ -35,6 +35,7 @@ import { sha256, buildChecksumList, renderChecksums } from '../tools/release-che
 import { validateVersions, releaseAssetsFor } from '../tools/release.mjs';
 import { parseIdent, publishBranchViaApi } from '../tools/git-publish.mjs';
 import { scanForSecrets } from '../tools/audit.mjs';
+import { parseVersion, auditDependency } from '../tools/deps-audit.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText, shareDailyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP, encryptSave, decryptSave, isEncryptedSave, ENCRYPTED_APP } from '../public/rw/js/save.mjs';
@@ -1852,6 +1853,29 @@ section('AJ. 挑战模式最佳');
   eq(hi.score, 30, '高分覆盖');
   eq(hi.win, false, '覆盖时更新胜利标记');
   eq(updateComboBest(null, { score: 7 }).score, 7, 'null 起点');
+}
+
+// ═══════════════════ AK. 依赖审计 ═══════════════════
+
+section('AK. 依赖审计');
+
+{
+  const dep = { name: 'three.js', expected: '160', versionRe: /const [a-zA-Z]="(\d+)",/, notices: 'three.js' };
+  eq(parseVersion('const t="160",e={}', dep.versionRe), '160', '解析版本号');
+  eq(parseVersion('nothing', dep.versionRe), null, '无匹配返回 null');
+
+  const okRes = auditDependency(dep, 'const t="160",e={}', 'three.js MIT', 'MIT');
+  eq(okRes.errors.length, 0, '版本一致无错误');
+  eq(okRes.warnings.length, 0, '声明齐全无警告');
+
+  const badVer = auditDependency(dep, 'const t="159",e={}', 'three.js MIT', 'MIT');
+  ok(badVer.errors.some((e) => e.includes('版本')), '版本不一致报错');
+  const missing = auditDependency(dep, null, 'three.js MIT', 'MIT');
+  ok(missing.errors.some((e) => e.includes('缺失')), '文件缺失报错');
+  const noNotice = auditDependency(dep, 'const t="160",e={}', '', 'MIT');
+  ok(noNotice.warnings.some((w) => w.includes('NOTICES')), '未声明许可警告');
+  const badLicense = auditDependency(dep, 'const t="160",e={}', 'three.js MIT', 'GPL-3.0');
+  ok(badLicense.errors.some((e) => e.includes('MIT')), '非 MIT 许可报错');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
