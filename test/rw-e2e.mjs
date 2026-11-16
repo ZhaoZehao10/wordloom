@@ -849,7 +849,7 @@ const toast = await evalJs(`(async () => {
   window.__rw.endRound(true);
   await new Promise(r => setTimeout(r, 200));
   const el = document.getElementById('ach-toast');
-  const first = { shown: el.classList.contains('show'), text: el.textContent };
+  const first = { shown: el.classList.contains('show'), text: el.textContent, animation: window.__rw.toastInfo().animation };
   // 再次胜利：成就已解锁，不应再次提示
   el.classList.remove('show');
   window.__rw.startRound('normal');
@@ -866,6 +866,7 @@ const toast = await evalJs(`(async () => {
   return { first, second, weekChips, firstWeekPlayed, weekRows: month.weekRows, monthText, hist: st.weeklyHistory.length };
 })()`);
 ok(toast.first.shown && toast.first.text.includes('新成就'), `首次解锁显示飘字「${toast.first.text}」`);
+ok(toast.first.animation.includes('ach-pop'), `飘字弹入动画生效（${toast.first.animation}）`);
 ok(toast.first.text.includes('抵达 1024'), '飘字包含成就名称');
 ok(!toast.second.shown, '已解锁的成就不再重复提示');
 ok(toast.weekChips === 8 && toast.weekRows === 8, `月视图显示最近 8 周榜（${toast.weekChips}）`);

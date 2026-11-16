@@ -30,6 +30,7 @@ import {
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
+import { popScale, toastAlpha, toastRise } from '../public/rw/js/anim.mjs';
 import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
 import { validateVersions, releaseAssetsFor } from '../tools/release.mjs';
 import { parseIdent, publishBranchViaApi } from '../tools/git-publish.mjs';
@@ -810,7 +811,7 @@ section('J. 单文件打包静态检查');
   const BUNDLED = [
     'data.mjs', 'i18n.mjs', 'rules.mjs', 'geometry.mjs', 'poster.mjs',
     'menu.mjs', 'stats.mjs', 'spatial.mjs', 'replay.mjs',
-    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'chart.mjs', 'share.mjs', 'graph.mjs', 'audio.mjs',
+    'daily.mjs', 'save.mjs', 'tutorial.mjs', 'comfort.mjs', 'chart.mjs', 'share.mjs', 'anim.mjs', 'graph.mjs', 'audio.mjs',
   ];
   const decls = new Map();   // 名字 → 出现的文件
   const dupes = [];
@@ -1810,6 +1811,24 @@ section('AH. 仓库审计');
   const pw = scanForSecrets('password = "' + 'hunter24' + '"');
   ok(pw.some((h) => h.type.includes('密码')), '识别明文密码');
   ok(scanForSecrets(null).length === 0, 'null 安全');
+}
+
+// ═══════════════════ AI. 成就动画曲线 ═══════════════════
+
+section('AI. 成就动画曲线');
+
+{
+  eq(popScale(0), 0.6, '起始缩放 0.6');
+  eq(popScale(0.45), 1.12, '过冲 1.12');
+  eq(popScale(1), 1, '结束回到 1');
+  eq(popScale(2), 1, '超出范围 clamp');
+  eq(popScale(NaN), 0.6, 'NaN 按起始');
+  eq(toastAlpha(0), 1, '开始不透明');
+  eq(toastAlpha(3), 1, '保持阶段');
+  eq(Math.round(toastAlpha(3.6) * 100) / 100, 0.5, '淡出中点 0.5');
+  eq(toastAlpha(4.2), 0, '完全淡出');
+  eq(toastRise(0), 0, '起点不上浮');
+  eq(Math.round(toastRise(4.2) * 1000) / 1000, 0.05, '结束上浮 0.05m');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

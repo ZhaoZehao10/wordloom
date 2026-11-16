@@ -349,3 +349,17 @@ button.ghost:hover { color: var(--text); }
 .save-pass { width: 180px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(140,165,255,0.24);
   background: rgba(20,27,51,0.5); color: #dfe7ff; font-size: 12px; outline: none; }
 .save-pass:focus { border-color: rgba(255,207,77,0.6); }
+
+/* ---------- 成就解锁动画 ---------- */
+
+@keyframes ach-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(6px) scale(.6); }
+  45% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.12); }
+  70% { transform: translateX(-50%) translateY(0) scale(.98); }
+  100% { transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes ach-glow {
+  0%, 100% { box-shadow: 0 0 24px rgba(255,207,77,0.25); }
+  50% { box-shadow: 0 0 42px rgba(255,207,77,0.6); }
+}
+#ach-toast.show { animation: ach-pop .5s cubic-bezier(.2,.9,.3,1.4), ach-glow 1.6s ease-in-out infinite; }

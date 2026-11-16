@@ -19,6 +19,7 @@ import { ACHIEVEMENTS } from './data.mjs';
 const qrLib = window.qrcode;
 import { shareStatsText, shareAchievementsText, shareWeeklyText, shareDailyText, SITE_URL } from './share.mjs';
 import { roundTimer } from './rules.mjs';
+import { popScale, toastAlpha, toastRise } from './anim.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
@@ -260,6 +261,7 @@ window.__rw = {
     isDaily: state.isDaily,
   }),
   debugStartDaily: () => startRound(null, { daily: dailyKey() }),
+  toastInfo: () => { const el = $('ach-toast'); return { shown: !!(el && el.classList.contains('show')), animation: el ? getComputedStyle(el).animationName : '', vr: !!vrToast }; },
   timedInfo: () => ({ timed: state.timed, timedRound: state.timedRound, timeLeft: state.timeLeft }),
   fogInfo: () => { const adj = state.graph ? adjacentOf(state.at) : []; const labels = state.graph ? state.graph.nodes.filter((n) => n._obj && n._obj.userData.label.visible).length : 0; return { fog: state.fog, adjacent: adj.length, labels }; },
   debugSetFog: (v) => { state.fog = !!v; localStorage.setItem('rw-fog', state.fog ? '1' : '0'); refreshFogUI(); refreshAdjacencyVisuals(); return state.fog; },
@@ -1505,11 +1507,13 @@ function showVrAchievementToast(text) {
     spr.position.copy(new THREE.Vector3(0, -0.12, -1.2).applyQuaternion(q).add(cp));
     spr.quaternion.copy(q);
     scene.add(spr);
-    vrToast = spr;
+    vrToast = { spr, t0: performance.now(), baseY: spr.position.y };
+    spr.scale.set(0.001, 0.001, 1);
+    spr.material.opacity = 0;
     clearTimeout(vrToastTimer);
     vrToastTimer = setTimeout(() => {
-      if (vrToast) { scene.remove(vrToast); vrToast.material.map?.dispose?.(); vrToast.material.dispose?.(); vrToast = null; }
-    }, 4200);
+      if (vrToast) { scene.remove(vrToast.spr); vrToast.spr.material.map?.dispose?.(); vrToast.spr.material.dispose?.(); vrToast = null; }
+    }, 6000);
   } catch { /* 忽略 */ }
 }
 
@@ -2603,6 +2607,21 @@ function animate() {
     if (state.timeLeft <= 0) {
       state.timeLeft = 0;
       endRound(false);
+    }
+  }
+
+  // 成就 VR 提示：缩放弹入 + 缓慢上浮 + 末段淡出
+  if (vrToast) {
+    const e = (performance.now() - vrToast.t0) / 1000;
+    const s = popScale(Math.min(1, e / 0.45));
+    vrToast.spr.scale.set(0.9 * s, 0.19 * s, 1);
+    vrToast.spr.material.opacity = toastAlpha(e);
+    vrToast.spr.position.y = vrToast.baseY + toastRise(e);
+    if (e >= 4.25) {
+      scene.remove(vrToast.spr);
+      vrToast.spr.material.map?.dispose?.();
+      vrToast.spr.material.dispose?.();
+      vrToast = null;
     }
   }
 
