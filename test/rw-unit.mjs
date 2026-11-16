@@ -1762,9 +1762,21 @@ section('AF. 存档加密');
 section('AG. API 回退（mock）');
 
 {
-  const root = process.cwd();
-  const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  const parent = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD~1'], { encoding: 'utf8' }).trim();
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rw-git-'));
+  const g = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim();
+  g('init', '-q');
+  g('config', 'user.email', 'test@example.com');
+  g('config', 'user.name', 'Test');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  g('add', '.');
+  g('commit', '-q', '-m', 'first');
+  fs.writeFileSync(path.join(dir, 'b.txt'), 'two\n');
+  g('add', '.');
+  g('commit', '-q', '-m', 'second');
+  const head = g('rev-parse', 'HEAD');
+  const parent = g('rev-parse', 'HEAD~1');
   const calls = [];
   const api = async (method, url) => {
     calls.push([method, url]);
@@ -1774,11 +1786,12 @@ section('AG. API 回退（mock）');
     if (url.includes('/git/commits')) return { sha: head };
     return {};
   };
-  const res = await publishBranchViaApi({ owner: 'o', name: 'n', token: 't', root, head, api });
+  const res = await publishBranchViaApi({ owner: 'o', name: 'n', token: 't', root: dir, head, api });
   eq(res, head, 'mock API 推送返回 HEAD');
   ok(calls.some(([m, u]) => u.includes('/git/blobs')), '创建 blob');
   ok(calls.some(([m, u]) => u.includes('/git/commits')), '创建 commit');
   ok(calls.some(([m, u]) => m === 'PATCH' && u.includes('/git/refs/heads/main')), '更新 main ref');
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 // ═══════════════════ 汇总 ═══════════════════
