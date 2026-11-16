@@ -25,7 +25,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, streakDays, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, streakDays, streakBadgeKeys, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -1659,6 +1659,12 @@ section('AA. 生涯累计 & 里程碑');
   eq(streakDays([{ key: '2026-11-13' }, { key: '2026-11-14' }, { key: '2026-11-15' }], '2026-11-15').join(','), '2026-11-13,2026-11-14,2026-11-15', '连续三天列表');
   eq(streakDays([{ key: '2026-11-13' }, { key: '2026-11-15' }], '2026-11-15').join(','), '2026-11-15', '断档只保留今天');
   eq(streakDays([{ key: '2026-11-14' }], '2026-11-15').length, 1, '今天未打从昨天算');
+  eq(streakBadgeKeys(0), [], '0 天无徽章');
+  eq(streakBadgeKeys(6), [], '6 天无徽章');
+  eq(streakBadgeKeys(7), ['streak7'], '7 天获得七日徽章');
+  eq(streakBadgeKeys(29), ['streak7'], '29 天仍只有七日');
+  eq(streakBadgeKeys(30), ['streak7', 'streak30'], '30 天获得两枚');
+  eq(streakBadgeKeys(NaN), [], 'NaN 无徽章');
 }
 
 // ═══════════════════ AB. 成就筛选 ═══════════════════

@@ -337,3 +337,11 @@ export function streakDays(history, todayKey) {
   while (set.has(cursor)) { out.push(cursor); cursor = addDays(cursor, -1); }
   return out.reverse();
 }
+/** 连续打卡徽章：返回已达成的成就 key 列表（7 天 / 30 天）。 */
+export function streakBadgeKeys(best) {
+  const n = Number.isFinite(best) ? Math.max(0, Math.trunc(best)) : 0;
+  const out = [];
+  if (n >= 7) out.push('streak7');
+  if (n >= 30) out.push('streak30');
+  return out;
+}

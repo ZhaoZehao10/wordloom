@@ -945,6 +945,23 @@ const streakMonth = await evalJs(`(() => {
 })()`);
 ok(streakMonth.cells === 3, `月视图高亮连续 3 天（${streakMonth.cells}）`);
 ok(streakMonth.summary.includes('连续 3 天'), `月摘要显示连续天数「${streakMonth.summary}」`);
+const badgeMonth = await evalJs(`(() => {
+  const st = window.__rw.state;
+  const today = window.__rw.dailyInfo().key;
+  const rows = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(new Date(today + 'T00:00:00').getTime() - i * 86400000);
+    const p = (n) => String(n).padStart(2, '0');
+    rows.push({ key: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), score: 6, win: false });
+  }
+  window.__rw.debugSetDailyHistory(rows);
+  window.__rw.debugOpenMonth(0);
+  const badges = document.querySelectorAll('#streak-badges .streak-badge').length;
+  const text = document.getElementById('streak-badges').textContent;
+  window.__rw.debugCloseMonth();
+  return { badges, text };
+})()`);
+ok(badgeMonth.badges === 1 && badgeMonth.text.includes('七日不辍'), `连续 7 天显示七日徽章「${badgeMonth.text}」`);
 const dayShare = await evalJs(`window.__rw.debugShareDaily()`);
 ok(dayShare.includes('每日挑战') && dayShare.includes('http') && dayShare.includes('连续'), `每日分享文案「${dayShare.slice(0, 40)}…」`);
 const dayPoster = await evalJs(`(() => { const u = window.__rw.debugDailyPoster(); return { prefix: u.slice(0, 22), len: u.length }; })()`);
@@ -1053,14 +1070,16 @@ console.log('\n[32] 关于面板 & Esc 关闭');
 const about = await evalJs(`(() => {
   const info = window.__rw.debugOpenAbout();
   const text = document.getElementById('about-body').textContent;
+  const controls = document.getElementById('about-controls').textContent;
   const closed = window.__rw.debugCloseAbout();
   window.__rw.debugOpenAbout();
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   const escClosed = document.getElementById('about').classList.contains('hidden');
-  return { info, text, closed, escClosed, expected: window.__rw.appVersion() };
+  return { info, text, controls, closed, escClosed, expected: window.__rw.appVersion() };
 })()`);
 ok(about.info.version === about.expected, `关于面板显示版本 ${about.info.version}（运行时 ${about.expected}）`);
 ok(about.text.includes('MIT') && about.text.includes('three.js') && about.text.includes('KB'), '关于面板包含许可/组件/存储');
+ok(about.controls.includes('扳机') && about.controls.includes('摇杆') && about.controls.includes('Esc'), '关于面板包含操作说明');
 ok(about.closed && about.escClosed, '关于面板可关闭（按钮与 Esc）');
 
 console.log('\n[33] 渲染帧检查（drawcall + 游戏中截图）');

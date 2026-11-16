@@ -28,7 +28,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, streakDays, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, streakDays, streakBadgeKeys, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues, encryptSave, decryptSave, isEncryptedSave } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -1258,6 +1258,17 @@ function openAbout() {
   body.innerHTML = rows.map(([k, v]) => `<div class="about-row"><span>${k}</span><b>${v}</b></div>`).join('') +
     `<div class="about-row"><span>${L('在线试玩')}</span><a href="${SITE_URL}" target="_blank" rel="noopener">${SITE_URL.replace('https://', '')}</a></div>` +
     `<div class="about-row"><span>${L('作者')}</span><a href="https://github.com/zhaozehao10" target="_blank" rel="noopener">github.com/zhaozehao10</a></div>`;
+  const ctl = $('about-controls');
+  if (ctl) {
+    const controls = [
+      [L('扳机'), L('走子 / 收词')],
+      [L('握键'), L('呼出菜单')],
+      [L('摇杆'), L('快转 30°')],
+      [L('键盘'), 'R 重开 · M 静音 · Esc 关闭面板'],
+    ];
+    ctl.innerHTML = `<div class="about-title">${L('操作说明')}</div>` +
+      controls.map(([k, v]) => `<div class="about-row"><span>${k}</span><b>${v}</b></div>`).join('');
+  }
   $('about').classList.remove('hidden');
   sfx.ui();
   return { version: APP_VERSION, storageKB: kb };
@@ -1746,6 +1757,14 @@ function openMonth(offset = state.monthOffset || 0) {
       }
       grid.appendChild(el);
     }
+  }
+  // 连续打卡徽章
+  const sb = $('streak-badges');
+  if (sb) {
+    const badges = streakBadgeKeys(dailyStreak(state.dailyHistory, dailyKey()).best);
+    sb.innerHTML = badges.length
+      ? badges.map((k) => `<span class="streak-badge">${k === 'streak7' ? `🔥 ${L('七日不辍')}` : `🗓 ${L('月满勤')}`}</span>`).join('')
+      : `<span class="streak-badge muted">${L('暂无连续徽章')}</span>`;
   }
   // 最近 8 周榜
   const wb = $('week-board');
