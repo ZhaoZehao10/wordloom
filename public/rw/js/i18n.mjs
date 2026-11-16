@@ -77,6 +77,7 @@ export const EN = {
   '只看未解锁': 'Locked only',
   '搜索成就': 'Search achievements',
   '分享今日': 'Share today',
+  '导出日签': 'Export daily card',
   'ⓘ 关于': 'ⓘ About',
   '关于拾径': 'About Wordloom',
   '版本': 'Version',

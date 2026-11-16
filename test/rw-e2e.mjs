@@ -946,6 +946,8 @@ ok(streakMonth.cells === 3, `月视图高亮连续 3 天（${streakMonth.cells}�
 ok(streakMonth.summary.includes('连续 3 天'), `月摘要显示连续天数「${streakMonth.summary}」`);
 const dayShare = await evalJs(`window.__rw.debugShareDaily()`);
 ok(dayShare.includes('每日挑战') && dayShare.includes('http') && dayShare.includes('连续'), `每日分享文案「${dayShare.slice(0, 40)}…」`);
+const dayPoster = await evalJs(`(() => { const u = window.__rw.debugDailyPoster(); return { prefix: u.slice(0, 22), len: u.length }; })()`);
+ok(dayPoster.prefix.startsWith('data:image/png') && dayPoster.len > 30000, `日签图片生成（${Math.round(dayPoster.len / 1024)}KB）`);
 const qr = await evalJs(`(() => { const q = window.__rw.debugQr(); const card = window.__rw.debugStatsCard(); return { q, len: card.length, prefix: card.slice(0, 22) }; })()`);
 ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
 ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);

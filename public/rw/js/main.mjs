@@ -296,6 +296,7 @@ window.__rw = {
   debugShareAch: () => buildShareAch(),
   debugShareWeekly: () => buildShareWeekly(),
   debugShareDaily: () => buildShareDaily(),
+  debugDailyPoster: () => buildDailyPosterDataURL(),
   debugEncryptSave: (pwd) => encryptSave(exportSave(collectSave()), pwd),
   debugDecryptSave: async (text, pwd) => {
     try { return { ok: true, raw: await decryptSave(text, pwd) }; }
@@ -1837,6 +1838,70 @@ function downloadWeeklyCsv() {
   } catch { /* 忽略 */ }
 }
 
+/** 每日挑战分享卡（1080×1350 PNG）：日期/得分/连续天数/7 日迷你图/二维码。 */
+function buildDailyPosterDataURL() {
+  const W = 1080, H = 1350;
+  const dk = dailyKey();
+  const ds = dailyStatus(state.daily, dk);
+  const st = dailyStreak(state.dailyHistory, dk);
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#131c3e'); g.addColorStop(1, '#0b1020');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 110; i++) {
+    c.fillStyle = `rgba(200,215,255,${Math.random() * 0.3 + 0.06})`;
+    c.fillRect(Math.random() * W, Math.random() * H, 2, 2);
+  }
+  c.textAlign = 'center';
+  c.fillStyle = '#dfe7ff'; c.font = 'bold 58px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('拾径 · 每日挑战', W / 2, 130);
+  c.fillStyle = '#8b96b8'; c.font = '34px "Segoe UI",sans-serif';
+  c.fillText(dk, W / 2, 196);
+
+  c.fillStyle = ds.played ? (ds.win ? '#ffcf4d' : '#6cd0ff') : '#5f6a88';
+  c.font = 'bold 150px "Segoe UI",sans-serif';
+  c.fillText(ds.played ? String(ds.score) : '—', W / 2, 430);
+  c.fillStyle = '#8b96b8'; c.font = '36px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText(ds.played ? (ds.win ? '通关 1024' : '完成') : '今日未挑战', W / 2, 500);
+  if (st.current > 0) {
+    c.fillStyle = '#ffcf4d'; c.font = '30px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.fillText(`连续打卡 ${st.current} 天`, W / 2, 560);
+  }
+
+  // 7 日迷你柱状图（左旧右新）
+  const board = dailyBoard(state.dailyHistory, dk, 7).slice().reverse();
+  const max = Math.max(10, ...board.map((b) => b.score));
+  const chartX = 110, chartY = 650, chartW = 860, chartH = 300;
+  const gap = 18, bw = (chartW - gap * (board.length - 1)) / board.length;
+  board.forEach((b, i) => {
+    const h = Math.max(6, Math.round((b.score / max) * chartH));
+    const x = chartX + i * (bw + gap);
+    c.fillStyle = b.win ? '#ffcf4d' : b.played ? '#6cd0ff' : 'rgba(140,165,255,0.18)';
+    c.fillRect(x, chartY + chartH - h, bw, h);
+    c.fillStyle = '#8b96b8'; c.font = '24px "Segoe UI",sans-serif';
+    c.fillText(b.short || b.key.slice(5), x + bw / 2, chartY + chartH + 36);
+  });
+
+  drawQr(c, SITE_URL, W - 210, H - 310, 150);
+  c.fillStyle = '#5f6a88'; c.font = '22px "PingFang SC","Microsoft YaHei",sans-serif';
+  c.fillText('扫码在线玩', W - 135, H - 130);
+  c.font = '26px "Segoe UI",sans-serif';
+  c.fillText('拾径 Wordloom · 词与线织成的荒原', W / 2, 1230);
+  return cv.toDataURL('image/png');
+}
+
+function downloadDailyPoster() {
+  try {
+    const a = document.createElement('a');
+    a.href = buildDailyPosterDataURL();
+    a.download = `拾径日签-${dailyKey()}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    sfx.ui();
+  } catch { /* 忽略 */ }
+}
+
 /** 每日 7 日榜柱状图（canvas 2D）。 */
 function drawDailyChart() {
   const cv = $('daily-chart');
@@ -1897,6 +1962,7 @@ function wire2D() {
   $('week-poster').onclick = () => downloadWeeklyPoster();
   $('week-share').onclick = () => copyShare(buildShareWeekly());
   $('day-share').onclick = () => copyShare(buildShareDaily());
+  $('day-poster').onclick = () => downloadDailyPoster();
   $('week-csv').onclick = () => downloadWeeklyCsv();
   const chartEl = $('daily-chart');
   if (chartEl) chartEl.onclick = () => openMonth();
