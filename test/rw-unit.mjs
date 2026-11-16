@@ -46,7 +46,7 @@ import {
   summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
-  parseTimedBest, updateTimedBest, recentRuns, parseCareer, updateCareer, completionRate,
+  parseTimedBest, updateTimedBest, recentRuns, parseCareer, updateCareer, completionRate, parseComboBest, updateComboBest,
 } from '../public/rw/js/stats.mjs';
 
 let pass = 0;
@@ -1835,6 +1835,23 @@ section('AI. 成就动画曲线');
   eq(toastAlpha(4.2), 0, '完全淡出');
   eq(toastRise(0), 0, '起点不上浮');
   eq(Math.round(toastRise(4.2) * 1000) / 1000, 0.05, '结束上浮 0.05m');
+}
+
+// ═══════════════════ AJ. 挑战模式最佳 ═══════════════════
+
+section('AJ. 挑战模式最佳');
+
+{
+  eq(parseComboBest(''), { score: 0, win: false, ts: 0 }, '空挑战最佳');
+  eq(parseComboBest('bad').score, 0, '坏 JSON');
+  const b = parseComboBest(JSON.stringify({ score: 33, win: true, ts: 5 }));
+  eq(b.score, 33, '解析分数');
+  eq(b.win, true, '解析胜利');
+  eq(updateComboBest({ score: 10, win: true }, { score: 5, win: false }).score, 10, '低分不覆盖');
+  const hi = updateComboBest({ score: 10, win: true }, { score: 30, win: false, ts: 9 });
+  eq(hi.score, 30, '高分覆盖');
+  eq(hi.win, false, '覆盖时更新胜利标记');
+  eq(updateComboBest(null, { score: 7 }).score, 7, 'null 起点');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

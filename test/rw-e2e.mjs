@@ -1082,7 +1082,30 @@ ok(about.text.includes('MIT') && about.text.includes('three.js') && about.text.i
 ok(about.controls.includes('扳机') && about.controls.includes('摇杆') && about.controls.includes('Esc'), '关于面板包含操作说明');
 ok(about.closed && about.escClosed, '关于面板可关闭（按钮与 Esc）');
 
-console.log('\n[33] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[33] 挑战模式（迷雾+限时）');
+const combo = await evalJs(`(async () => {
+  const st = window.__rw.state;
+  window.__rw.debugSetFog(false);
+  window.__rw.debugSetTimed(false);
+  window.__rw.debugStartCombo();
+  await new Promise(r => setTimeout(r, 260));
+  const info = window.__rw.comboInfo();
+  st.score = 42;
+  window.__rw.endRound(true);
+  await new Promise(r => setTimeout(r, 240));
+  const after = window.__rw.comboInfo();
+  window.__rw.debugOpenStats();
+  const text = document.getElementById('stats-combo').textContent;
+  window.__rw.debugCloseStats();
+  return { info, after, text };
+})()`);
+ok(combo.info.comboRound === true && combo.info.fog === true && combo.info.timed === true, '挑战模式强制迷雾+限时');
+ok(combo.info.timeLeft > 85 && combo.info.timeLeft <= 90, `挑战倒计时 90s（${combo.info.timeLeft.toFixed(1)}）`);
+ok(combo.after.comboRound === false && combo.after.fog === false && combo.after.timed === false, '结束后恢复原开关');
+ok(combo.after.best.score >= 42, `挑战最佳已记录（${combo.after.best.score}）`);
+ok(combo.text.includes('挑战最佳'), `统计面板显示挑战最佳「${combo.text}」`);
+
+console.log('\n[34] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

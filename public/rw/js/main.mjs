@@ -24,7 +24,8 @@ import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
   parseCollection, serializeCollection, addToCollection, collectionProgress, diffsWon,
   parseAchievements, unlockAchievements, newAchievements, collectionHint, careerStats,
-  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, parseCareer, updateCareer, CAREER_KEY, completionRate, ACHIEVEMENTS_KEY,
+  parseTimedBest, updateTimedBest, recentRuns, TIMED_BEST_KEY, parseCareer, updateCareer, CAREER_KEY, completionRate,
+  parseComboBest, updateComboBest, COMBO_BEST_KEY, ACHIEVEMENTS_KEY,
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
@@ -69,6 +70,8 @@ const state = {
   timedBest: parseTimedBest(localStorage.getItem('rw-timed-best') || ''), // 限时最佳（分难度）
   career: parseCareer(localStorage.getItem(CAREER_KEY) || ''), // 生涯累计
   monthOffset: 0,               // 月视图偏移（0=本月）
+  comboRound: false,            // 本局是否为挑战模式
+  comboBest: parseComboBest(localStorage.getItem(COMBO_BEST_KEY) || ''), // 挑战最佳
   achFilter: { group: 'all', onlyLocked: false }, // 成就面板筛选
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
@@ -263,6 +266,8 @@ window.__rw = {
   debugStartDaily: () => startRound(null, { daily: dailyKey() }),
   toastInfo: () => { const el = $('ach-toast'); return { shown: !!(el && el.classList.contains('show')), animation: el ? getComputedStyle(el).animationName : '', vr: !!vrToast }; },
   timedInfo: () => ({ timed: state.timed, timedRound: state.timedRound, timeLeft: state.timeLeft }),
+  comboInfo: () => ({ comboRound: state.comboRound, best: state.comboBest, fog: state.fog, timed: state.timed, timeLeft: state.timeLeft }),
+  debugStartCombo: () => startRound(null, { combo: true }),
   fogInfo: () => { const adj = state.graph ? adjacentOf(state.at) : []; const labels = state.graph ? state.graph.nodes.filter((n) => n._obj && n._obj.userData.label.visible).length : 0; return { fog: state.fog, adjacent: adj.length, labels }; },
   debugSetFog: (v) => { state.fog = !!v; localStorage.setItem('rw-fog', state.fog ? '1' : '0'); refreshFogUI(); refreshAdjacencyVisuals(); return state.fog; },
   debugSetTimed: (v) => { state.timed = !!v; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); return state.timed; },
@@ -635,20 +640,31 @@ function startRound(diffKey, opts = {}) {
   // 每日/每周挑战：难度与种子由日期/周次决定 → 同期所有人同一张图
   const daily = typeof opts.daily === 'string' ? opts.daily : null;
   const weekly = typeof opts.weekly === 'string' ? opts.weekly : null;
-  const diff = daily
-    ? (DIFFICULTIES.find((d) => d.key === dailyDifficulty(daily)) || DIFFICULTIES[1])
-    : weekly
-      ? (DIFFICULTIES.find((d) => d.key === weekDifficulty(weekly)) || DIFFICULTIES[1])
-      : (DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1]);
+  const combo = !!opts.combo;
+  const diff = combo
+    ? DIFFICULTIES[1]
+    : daily
+      ? (DIFFICULTIES.find((d) => d.key === dailyDifficulty(daily)) || DIFFICULTIES[1])
+      : weekly
+        ? (DIFFICULTIES.find((d) => d.key === weekDifficulty(weekly)) || DIFFICULTIES[1])
+        : (DIFFICULTIES.find((d) => d.key === diffKey) || DIFFICULTIES[1]);
 
   state.diff = diff.key;
   state.isDaily = !!daily;
   state.isWeekly = !!weekly;
   state.dailyKey = daily;
   state.weeklyKey = weekly;
-  if (!daily && !weekly) {
+  state.comboRound = combo;
+  if (!daily && !weekly && !combo) {
     state.pendingDiff = diff.key;               // 记住难度，跨局/跨会话生效
     localStorage.setItem('rw-diff', diff.key);
+  }
+  if (combo) {
+    // 挑战模式：强制迷雾 + 限时，结束后恢复用户原开关
+    state._savedFog = state.fog;
+    state._savedTimed = state.timed;
+    state.fog = true;
+    state.timed = true;
   }
   state.stepsMax = diff.steps;
   state.stepsLeft = diff.steps;
@@ -758,6 +774,17 @@ function endRound(win) {
   $('end').classList.remove('hidden');
   showEndPanel(win);
   updateHud();
+  // 挑战模式：记录最佳并恢复用户原开关
+  if (state.comboRound) {
+    state.comboBest = updateComboBest(state.comboBest, { score: state.score, win, ts: Date.now() });
+    localStorage.setItem(COMBO_BEST_KEY, JSON.stringify(state.comboBest));
+    if (typeof state._savedFog === 'boolean') state.fog = state._savedFog;
+    if (typeof state._savedTimed === 'boolean') state.timed = state._savedTimed;
+    refreshFogUI();
+    refreshTimedUI();
+    refreshAdjacencyVisuals();
+    state.comboRound = false;
+  }
 }
 
 // 结算数据（2D 海报与 VR 面板共用；纯计算委托给 rules.buildResult）
@@ -1210,6 +1237,11 @@ function openStats() {
   if (cEl) {
     const c = state.career || { rounds: 0, wins: 0, words: 0, timedRounds: 0, fogRounds: 0 };
     cEl.textContent = `${L('生涯累计')}：${c.rounds} ${L('局')} · ${c.wins} ${L('胜')} · ${c.words} ${L('词')} · ${L('限时')} ${c.timedRounds} · ${L('迷雾')} ${c.fogRounds}`;
+  }
+  const cbEl = $('stats-combo');
+  if (cbEl) {
+    const cb = state.comboBest || { score: 0, win: false };
+    cbEl.textContent = `${L('挑战最佳')}：${cb.score} ${L('分')}${cb.win ? ' · ✓' : ''}`;
   }
   // 最近对局
   const rl = $('recent-list');
@@ -1961,6 +1993,7 @@ function wire2D() {
   $('weekly-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { weekly: weekKey() }); };
   $('timed-btn').onclick = () => { state.timed = !state.timed; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); sfx.ui(); };
   $('fog-btn').onclick = () => { state.fog = !state.fog; localStorage.setItem('rw-fog', state.fog ? '1' : '0'); refreshFogUI(); refreshAdjacencyVisuals(); sfx.ui(); };
+  $('combo-btn').onclick = () => { audio.unlock(); sfx.ui(); startRound(null, { combo: true }); };
   $('save-export').onclick = () => { sfx.ui(); exportSaveFile(); };
   $('save-import').onclick = () => { sfx.ui(); $('save-file').click(); };
   $('save-file').onchange = (e) => importSaveFile(e);
@@ -2180,7 +2213,7 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
-  $('end-stats').textContent = `${state.timedRound ? `⏱ ${L('限时')} · ` : ''}${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
+  $('end-stats').textContent = `${state.comboRound ? `🎭 ${L('挑战')} · ` : ''}${state.timedRound ? `⏱ ${L('限时')} · ` : ''}${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
   const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('end-history').textContent = [
     historyLine(),

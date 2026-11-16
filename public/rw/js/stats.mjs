@@ -294,3 +294,28 @@ export function completionRate(unlocked, total) {
   if (t <= 0) return 0;
   return Math.min(100, Math.round((u / t) * 100));
 }
+// ---------------- 挑战模式最佳 ----------------
+
+export const COMBO_BEST_KEY = 'rw-combo-best';
+
+/** 解析挑战最佳：{score,win,ts}。 */
+export function parseComboBest(raw) {
+  if (typeof raw !== 'string' || !raw) return { score: 0, win: false, ts: 0 };
+  try {
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return { score: 0, win: false, ts: 0 };
+    return {
+      score: Number.isFinite(d.score) && d.score >= 0 ? d.score : 0,
+      win: !!d.win,
+      ts: Number.isFinite(d.ts) ? d.ts : 0,
+    };
+  } catch { return { score: 0, win: false, ts: 0 }; }
+}
+
+/** 挑战最佳只升不降。 */
+export function updateComboBest(best, { score = 0, win = false, ts = Date.now() } = {}) {
+  const cur = best && typeof best === 'object' ? best : { score: 0 };
+  const s = Number.isFinite(score) && score >= 0 ? score : 0;
+  if (s > (cur.score || 0)) return { score: s, win: !!win, ts };
+  return { score: cur.score || 0, win: !!cur.win, ts: cur.ts || 0 };
+}
