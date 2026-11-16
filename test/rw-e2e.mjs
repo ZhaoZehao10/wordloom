@@ -11,7 +11,7 @@ const PORT = 9343;
 const URL = 'https://localhost:8543/rw/index.html';
 
 const chrome = spawn(CHROME, [
-  '--headless=new', '--disable-gpu-sandbox', '--no-first-run',
+  '--headless=new', '--disable-gpu-sandbox', '--no-first-run', '--disable-dev-shm-usage',
   ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
   `--user-data-dir=${tempProfile('rw-cdp')}`, `--remote-debugging-port=${PORT}`,
   '--window-size=1280,800', '--ignore-certificate-errors', 'about:blank',
@@ -25,8 +25,8 @@ const ok = (cond, name, extra = '') => {
 };
 
 let targets = null;
-for (let i = 0; i < 40; i++) {
-  await sleep(250);
+for (let i = 0; i < 80; i++) {
+  await sleep(400);
   try {
     const res = await fetch(`http://127.0.0.1:${PORT}/json/list`);
     targets = await res.json();
