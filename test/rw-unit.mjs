@@ -33,6 +33,7 @@ import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
 import { validateVersions, releaseAssetsFor } from '../tools/release.mjs';
 import { parseIdent, publishBranchViaApi } from '../tools/git-publish.mjs';
+import { scanForSecrets } from '../tools/audit.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
 import { shareStatsText, shareAchievementsText, shareWeeklyText, shareDailyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP, encryptSave, decryptSave, isEncryptedSave, ENCRYPTED_APP } from '../public/rw/js/save.mjs';
@@ -1792,6 +1793,23 @@ section('AG. API 回退（mock）');
   ok(calls.some(([m, u]) => u.includes('/git/commits')), '创建 commit');
   ok(calls.some(([m, u]) => m === 'PATCH' && u.includes('/git/refs/heads/main')), '更新 main ref');
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ═══════════════════ AH. 仓库审计 ═══════════════════
+
+section('AH. 仓库审计');
+
+{
+  eq(scanForSecrets('普通文本，没有密钥').length, 0, '干净文本无命中');
+  const gh = scanForSecrets('token: ' + 'ghp_' + 'a'.repeat(36));
+  ok(gh.some((h) => h.type.includes('GitHub')), '识别 GitHub token');
+  const aws = scanForSecrets('AKIA' + 'A'.repeat(16));
+  ok(aws.some((h) => h.type.includes('AWS')), '识别 AWS key');
+  const pk = scanForSecrets('-----BEGIN ' + 'RSA PRIVATE KEY-----');
+  ok(pk.some((h) => h.type.includes('私钥')), '识别私钥');
+  const pw = scanForSecrets('password = "' + 'hunter24' + '"');
+  ok(pw.some((h) => h.type.includes('密码')), '识别明文密码');
+  ok(scanForSecrets(null).length === 0, 'null 安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
