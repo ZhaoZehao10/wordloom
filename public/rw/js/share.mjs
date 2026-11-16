@@ -35,3 +35,11 @@ export function shareWeeklyText({ weeksPlayed = 0, best = 0, total = 0, currentK
   if (w === 0) return `《拾径》每周挑战本周还没人走，来拿首胜：${url}`;
   return `《拾径》每周挑战${key ? ' ' + key : ''}：我最近 ${w} 周共 ${t} 分，最佳 ${b}。来挑战本周词图：${url}`;
 }
+
+/** 每日挑战分享文案。 */
+export function shareDailyText({ key = '', score = 0, win = false, streak = 0 } = {}, url = SITE_URL) {
+  const k = typeof key === 'string' && key ? key : '';
+  const s = Number.isFinite(score) ? score : 0;
+  const st = Number.isFinite(streak) ? streak : 0;
+  return `《拾径》每日挑战${k ? ' ' + k : ''}：${win ? '通关' : '完成'} ${s} 分${st > 0 ? `，连续 ${st} 天` : ''}。来挑战今天的词图：${url}`;
+}

@@ -76,6 +76,7 @@ export const EN = {
   '生涯': 'Career',
   '只看未解锁': 'Locked only',
   '搜索成就': 'Search achievements',
+  '分享今日': 'Share today',
   'ⓘ 关于': 'ⓘ About',
   '关于拾径': 'About Wordloom',
   '版本': 'Version',

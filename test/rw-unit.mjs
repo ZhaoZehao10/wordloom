@@ -8,6 +8,7 @@
 //   D. 合批几何正确性（边缓冲 / 词球烘焙 / 顶点色回写）
 import { generateGraph } from '../public/rw/js/graph.mjs';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys, APP_VERSION } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
@@ -31,9 +32,9 @@ import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
 import { renderPerfReport, svgLine } from '../tools/perf-report.mjs';
 import { sha256, buildChecksumList, renderChecksums } from '../tools/release-checksums.mjs';
 import { validateVersions, releaseAssetsFor } from '../tools/release.mjs';
-import { parseIdent } from '../tools/git-publish.mjs';
+import { parseIdent, publishBranchViaApi } from '../tools/git-publish.mjs';
 import qrcode from '../public/rw/vendor/qrcode.mjs';
-import { shareStatsText, shareAchievementsText, shareWeeklyText } from '../public/rw/js/share.mjs';
+import { shareStatsText, shareAchievementsText, shareWeeklyText, shareDailyText } from '../public/rw/js/share.mjs';
 import { exportSave, importSave, resetValues, SAVE_VERSION, SAVE_APP, encryptSave, decryptSave, isEncryptedSave, ENCRYPTED_APP } from '../public/rw/js/save.mjs';
 import { hexToRgb, relativeLuminance, contrastRatio, auditSkin, auditAllSkins } from '../public/rw/js/a11y.mjs';
 import { TUTORIAL_STEPS, parseTutorialDone, shouldShowTutorial, tutorialDoneValue } from '../public/rw/js/tutorial.mjs';
@@ -1574,6 +1575,10 @@ section('X. 分享文案');
   const w = shareWeeklyText({ weeksPlayed: 5, best: 70, total: 210, currentKey: '2026-W46' });
   ok(w.includes('2026-W46') && w.includes('5 周') && w.includes('210 分') && w.includes('70'), '周报文案', w);
   ok(shareWeeklyText({ weeksPlayed: 0 }).includes('首胜'), '零周文案');
+
+  const d = shareDailyText({ key: '2026-11-16', score: 88, win: true, streak: 3 });
+  ok(d.includes('2026-11-16') && d.includes('通关 88 分') && d.includes('连续 3 天'), '每日文案', d);
+  ok(shareDailyText({}).includes('完成 0 分'), '每日空态文案');
 }
 
 // ═══════════════════ Y. 限时模式 ═══════════════════
@@ -1750,6 +1755,30 @@ section('AF. 存档加密');
   const tampered = JSON.parse(enc); tampered.data = tampered.data.slice(0, -4) + 'AAAA';
   const tamperErr = await decryptSave(JSON.stringify(tampered), 'pass1234').then(() => null).catch((e) => e.message);
   ok(tamperErr && tamperErr.includes('密码错误'), '篡改密文被拒绝');
+}
+
+// ═══════════════════ AG. API 回退（mock） ═══════════════════
+
+section('AG. API 回退（mock）');
+
+{
+  const root = process.cwd();
+  const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const parent = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD~1'], { encoding: 'utf8' }).trim();
+  const calls = [];
+  const api = async (method, url) => {
+    calls.push([method, url]);
+    if (url.endsWith('/git/ref/heads/main')) return { object: { sha: parent } };
+    if (url.includes('/git/blobs')) return { sha: 'a'.repeat(40) };
+    if (url.includes('/git/trees')) return { sha: 'b'.repeat(40) };
+    if (url.includes('/git/commits')) return { sha: head };
+    return {};
+  };
+  const res = await publishBranchViaApi({ owner: 'o', name: 'n', token: 't', root, head, api });
+  eq(res, head, 'mock API 推送返回 HEAD');
+  ok(calls.some(([m, u]) => u.includes('/git/blobs')), '创建 blob');
+  ok(calls.some(([m, u]) => u.includes('/git/commits')), '创建 commit');
+  ok(calls.some(([m, u]) => m === 'PATCH' && u.includes('/git/refs/heads/main')), '更新 main ref');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

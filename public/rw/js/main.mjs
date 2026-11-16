@@ -17,7 +17,7 @@ import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import { ACHIEVEMENTS } from './data.mjs';
 // qrcode 由 vendor/qrcode.js（UMD）提供全局变量
 const qrLib = window.qrcode;
-import { shareStatsText, shareAchievementsText, shareWeeklyText, SITE_URL } from './share.mjs';
+import { shareStatsText, shareAchievementsText, shareWeeklyText, shareDailyText, SITE_URL } from './share.mjs';
 import { roundTimer } from './rules.mjs';
 import {
   appendRecord, summarize, parseHistory, serializeHistory, summaryLine, HISTORY_LIMIT,
@@ -295,6 +295,7 @@ window.__rw = {
   debugShareStats: () => buildShareStats(),
   debugShareAch: () => buildShareAch(),
   debugShareWeekly: () => buildShareWeekly(),
+  debugShareDaily: () => buildShareDaily(),
   debugEncryptSave: (pwd) => encryptSave(exportSave(collectSave()), pwd),
   debugDecryptSave: async (text, pwd) => {
     try { return { ok: true, raw: await decryptSave(text, pwd) }; }
@@ -1408,6 +1409,13 @@ function buildShareAch() {
   return shareAchievementsText({ unlocked: state.unlocked.length, total: Object.keys(ACHIEVEMENTS).length, names });
 }
 
+function buildShareDaily() {
+  const dk = dailyKey();
+  const ds = dailyStatus(state.daily, dk);
+  const st = dailyStreak(state.dailyHistory, dk);
+  return shareDailyText({ key: dk, score: ds.played ? ds.score : 0, win: ds.played ? ds.win : false, streak: st.current });
+}
+
 function buildShareWeekly() {
   const board = weeklyBoard(state.weeklyHistory, weekKey(), 8);
   const played = board.filter((b) => b.played);
@@ -1888,6 +1896,7 @@ function wire2D() {
   $('month-next').onclick = () => { sfx.ui(); openMonth(state.monthOffset + 1); };
   $('week-poster').onclick = () => downloadWeeklyPoster();
   $('week-share').onclick = () => copyShare(buildShareWeekly());
+  $('day-share').onclick = () => copyShare(buildShareDaily());
   $('week-csv').onclick = () => downloadWeeklyCsv();
   const chartEl = $('daily-chart');
   if (chartEl) chartEl.onclick = () => openMonth();
