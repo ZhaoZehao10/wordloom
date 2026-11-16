@@ -15,6 +15,7 @@ const NO_SERVER = process.argv.includes('--no-server');
 
 const SUITES = [
   { name: '单元测试', file: 'test/rw-unit.mjs' },
+  { name: '仓库审计', file: 'tools/audit.mjs' },
   { name: '离线单文件打包', file: 'tools/make-offline.mjs' },
   { name: '桌面端到端', file: 'test/rw-e2e.mjs', server: true },
   { name: '离线版端到端', file: 'test/rw-offline-e2e.mjs' },
