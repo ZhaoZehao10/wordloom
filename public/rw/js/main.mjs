@@ -269,6 +269,7 @@ window.__rw = {
   comboInfo: () => ({ comboRound: state.comboRound, best: state.comboBest, fog: state.fog, timed: state.timed, timeLeft: state.timeLeft }),
   debugStartCombo: () => startRound(null, { combo: true }),
   fogInfo: () => { const adj = state.graph ? adjacentOf(state.at) : []; const labels = state.graph ? state.graph.nodes.filter((n) => n._obj && n._obj.userData.label.visible).length : 0; return { fog: state.fog, adjacent: adj.length, labels }; },
+  haloInfo: () => { if (!state.graph) return []; const adj = adjacentOf(state.at); return adj.map((i) => state.graph.nodes[i]._obj.userData.halo.scale.x); },
   debugSetFog: (v) => { state.fog = !!v; localStorage.setItem('rw-fog', state.fog ? '1' : '0'); refreshFogUI(); refreshAdjacencyVisuals(); return state.fog; },
   debugSetTimed: (v) => { state.timed = !!v; localStorage.setItem('rw-timed', state.timed ? '1' : '0'); refreshTimedUI(); return state.timed; },
   weeklyInfo: () => ({ key: weekKey(), seed: weekSeed(weekKey()), difficulty: weekDifficulty(weekKey()), status: weeklyStatus(state.weekly, weekKey()), isWeekly: state.isWeekly }),
@@ -1166,6 +1167,25 @@ function openCollection() {
 
 function closeCollection() { $('coll').classList.add('hidden'); }
 
+let achRingRaf = null;
+
+/** 成就进度环：从 0 缓动填充到目标百分比。 */
+function animateAchievementRing(pct) {
+  const ring = $('ach-ring');
+  if (!ring) return;
+  if (achRingRaf) cancelAnimationFrame(achRingRaf);
+  const t0 = performance.now();
+  const dur = 650;
+  const step = () => {
+    const p = Math.min(1, (performance.now() - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3);
+    const v = Math.round(pct * eased);
+    ring.style.background = `conic-gradient(#ffcf4d 0% ${v}%, rgba(140,165,255,0.16) ${v}% 100%)`;
+    if (p < 1) achRingRaf = requestAnimationFrame(step);
+  };
+  step();
+}
+
 /** 成就总览：展示全部成就及解锁状态（支持分类/未解锁筛选）。 */
 function openAchievements(filter = null) {
   if (filter) state.achFilter = { ...(state.achFilter || { group: 'all', onlyLocked: false }), ...filter };
@@ -1197,8 +1217,7 @@ function openAchievements(filter = null) {
   const unlocked = allKeys.filter((k) => set.has(k)).length;
   // 完成度进度环
   const pct = completionRate(unlocked, allKeys.length);
-  const ring = $('ach-ring');
-  if (ring) ring.style.background = `conic-gradient(#ffcf4d 0% ${pct}%, rgba(140,165,255,0.16) ${pct}% 100%)`;
+  animateAchievementRing(pct);
   const pctEl = $('ach-pct');
   if (pctEl) pctEl.textContent = `${pct}%`;
   const labelEl = $('ach-progress-label');
@@ -2674,6 +2693,28 @@ function animate() {
       vrToast.spr.material.map?.dispose?.();
       vrToast.spr.material.dispose?.();
       vrToast = null;
+    }
+  }
+
+  // 相邻词球光晕：呼吸脉冲（冻结时复位，保证截图稳定）
+  if (state.graph) {
+    if (state.frozen) {
+      for (const nd of state.graph.nodes) {
+        if (nd._obj && nd._obj.userData.halo) {
+          nd._obj.userData.halo.scale.set(1, 1, 1);
+          nd._obj.userData.halo.material.opacity = 0.7;
+        }
+      }
+    } else if (state.mode === 'playing') {
+      const adj = adjacentOf(state.at);
+      for (const idx of adj) {
+        const nd = state.graph.nodes[idx];
+        const halo = nd && nd._obj && nd._obj.userData.halo;
+        if (!halo) continue;
+        const k = 1 + 0.06 * Math.sin(t * 3 + idx * 0.7);
+        halo.scale.set(k, k, 1);
+        halo.material.opacity = 0.55 + 0.25 * Math.sin(t * 3 + idx * 0.7);
+      }
     }
   }
 

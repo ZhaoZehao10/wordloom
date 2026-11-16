@@ -782,8 +782,9 @@ ok(filters.all === 21 && filters.backAll === 21, `成就总览显示 21 项（${
 ok(filters.chips === 8, `筛选 chips 8 个（${filters.chips}）`);
 ok(filters.mode === 3 && filters.active === 'mode', `模式筛选 3 项（${filters.mode}）`);
 ok(filters.lockedMode <= 3, `只看未解锁生效（${filters.lockedMode}）`);
-const ring = await evalJs(`(() => {
+const ring = await evalJs(`(async () => {
   const r = window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
+  await new Promise((res) => setTimeout(res, 800));
   const pct = document.getElementById('ach-pct').textContent;
   const label = document.getElementById('ach-progress-label').textContent;
   const bg = document.getElementById('ach-ring').style.background;
@@ -791,7 +792,7 @@ const ring = await evalJs(`(() => {
   return { r, pct, label, bg };
 })()`);
 ok(ring.pct === `${ring.r.pct}%`, `进度环百分比 ${ring.pct}`);
-ok(ring.label.includes('/21') && ring.bg.includes('conic-gradient'), `进度环与标签渲染（${ring.label}）`);
+ok(ring.label.includes('/21') && ring.bg.includes('conic-gradient') && ring.bg.includes(`${ring.r.pct}%`), `进度环动画填充完成（${ring.label}）`);
 const search = await evalJs(`(() => {
   window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
   const input = document.getElementById('ach-search');
@@ -1105,7 +1106,23 @@ ok(combo.after.comboRound === false && combo.after.fog === false && combo.after.
 ok(combo.after.best.score >= 42, `挑战最佳已记录（${combo.after.best.score}）`);
 ok(combo.text.includes('挑战最佳'), `统计面板显示挑战最佳「${combo.text}」`);
 
-console.log('\n[34] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[34] 词球光晕呼吸脉冲');
+const halo = await evalJs(`(async () => {
+  window.__rw.startRound('normal');
+  await new Promise((r) => setTimeout(r, 300));
+  const a = window.__rw.haloInfo().slice();
+  await new Promise((r) => setTimeout(r, 260));
+  const b = window.__rw.haloInfo().slice();
+  window.__rw.debugFreeze(true);
+  await new Promise((r) => setTimeout(r, 150));
+  const frozen = window.__rw.haloInfo().slice();
+  window.__rw.debugFreeze(false);
+  return { a, b, frozen };
+})()`);
+ok(halo.a.length > 0 && halo.a.some((v, i) => Math.abs(v - halo.b[i]) > 0.001), '相邻光晕随时间呼吸');
+ok(halo.frozen.length > 0 && halo.frozen.every((v) => Math.abs(v - 1) < 0.001), '冻结时光晕复位为 1（基线稳定）');
+
+console.log('\n[35] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);
