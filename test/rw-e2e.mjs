@@ -756,11 +756,11 @@ const achPanel = await evalJs(`(async () => {
   window.__rw.debugCloseMonth();
   return { info0, panel, gotDom, lockedDom, countText, closed, monthText };
 })()`);
-ok(achPanel.info0.total === 21, `成就总数 ${achPanel.info0.total}`);
+ok(achPanel.info0.total === 22, `成就总数 ${achPanel.info0.total}`);
 ok(achPanel.info0.unlocked.length > 0, `已有解锁成就（${achPanel.info0.unlocked.length}）`);
-ok(achPanel.panel.total === 21 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
+ok(achPanel.panel.total === 22 && achPanel.panel.unlocked === achPanel.info0.unlocked.length, '成就面板统计一致');
 ok(achPanel.gotDom === achPanel.info0.unlocked.length && achPanel.lockedDom > 0, `已解锁/未解锁渲染正确（${achPanel.gotDom}/${achPanel.lockedDom}）`);
-ok(achPanel.countText === `${achPanel.info0.unlocked.length}/21`, `成就计数显示 ${achPanel.countText}`);
+ok(achPanel.countText === `${achPanel.info0.unlocked.length}/22`, `成就计数显示 ${achPanel.countText}`);
 ok(achPanel.closed, '成就面板可关闭');
 ok(achPanel.monthText.includes('历史最佳 42'), `月视图显示历史最佳「${achPanel.monthText}」`);
 
@@ -778,7 +778,7 @@ const filters = await evalJs(`(() => {
   window.__rw.debugCloseAchievements();
   return { all, chips, mode, active, lockedMode, backAll };
 })()`);
-ok(filters.all === 21 && filters.backAll === 21, `成就总览显示 21 项（${filters.all}）`);
+ok(filters.all === 22 && filters.backAll === 22, `成就总览显示 21 项（${filters.all}）`);
 ok(filters.chips === 8, `筛选 chips 8 个（${filters.chips}）`);
 ok(filters.mode === 3 && filters.active === 'mode', `模式筛选 3 项（${filters.mode}）`);
 ok(filters.lockedMode <= 3, `只看未解锁生效（${filters.lockedMode}）`);
@@ -792,7 +792,7 @@ const ring = await evalJs(`(async () => {
   return { r, pct, label, bg };
 })()`);
 ok(ring.pct === `${ring.r.pct}%`, `进度环百分比 ${ring.pct}`);
-ok(ring.label.includes('/21') && ring.bg.includes('conic-gradient') && ring.bg.includes(`${ring.r.pct}%`), `进度环动画填充完成（${ring.label}）`);
+ok(ring.label.includes('/22') && ring.bg.includes('conic-gradient') && ring.bg.includes(`${ring.r.pct}%`), `进度环动画填充完成（${ring.label}）`);
 const search = await evalJs(`(() => {
   window.__rw.debugOpenAchievements({ group: 'all', onlyLocked: false });
   const input = document.getElementById('ach-search');
@@ -806,7 +806,7 @@ const search = await evalJs(`(() => {
   return { fog, all };
 })()`);
 ok(search.fog === 1, `搜索「雾」命中 1 项（${search.fog}）`);
-ok(search.all === 21, `清空搜索恢复 21 项（${search.all}）`);
+ok(search.all === 22, `清空搜索恢复 21 项（${search.all}）`);
 
 console.log('\n[24] 每周挑战 & 海报生涯成就');
 const weekly = await evalJs(`(async () => {
@@ -1003,7 +1003,7 @@ ok(qr.q.modules >= 21, `二维码模块数 ${qr.q.modules}`);
 ok(qr.prefix.startsWith('data:image/png') && qr.len > 30000, `统计卡生成（${Math.round(qr.len / 1024)}KB，含二维码）`);
 const shares = await evalJs(`({ stats: window.__rw.debugShareStats(), ach: window.__rw.debugShareAch(), weekly: window.__rw.debugShareWeekly() })`);
 ok(shares.stats.includes('《拾径》') && shares.stats.includes('http'), '统计分享文案含链接');
-ok(shares.ach.includes('/21'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
+ok(shares.ach.includes('/22'), `成就分享文案「${shares.ach.slice(0, 48)}…」`);
 ok(shares.weekly.includes('《拾径》') && shares.weekly.includes('http'), '周报分享文案含链接');
 
 console.log('\n[29] 限时模式');
@@ -1170,13 +1170,16 @@ const comboWalk = await evalJs(`(async () => {
   await waitGlide();
   const combo = st.combo;
   const maxCombo = st.maxCombo;
+  st.maxCombo = 5;
   window.__rw.endRound(true);
   await new Promise((r) => setTimeout(r, 200));
   const text = document.getElementById('end-stats').textContent;
-  return { combo, maxCombo, text };
+  const comboAch = window.__rw.achievementInfo().unlocked.includes('comboMaster');
+  return { combo, maxCombo, text, comboAch };
 })()`);
 ok(comboWalk.combo >= 2 && comboWalk.maxCombo >= 2, `两次快速走子触发连击（x${comboWalk.combo}）`);
 ok(comboWalk.text.includes('最高连击'), `结算页显示最高连击「${comboWalk.text.slice(0, 50)}…」`);
+ok(comboWalk.comboAch, '5 连解锁「五连珠」成就');
 
 console.log('\n[36] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);

@@ -839,6 +839,7 @@ function resultData(win) {
     comboWin: !!state.fog && !!state.timedRound && win,
     careerRounds: state.career ? state.career.rounds : 0,
     careerWins: state.career ? state.career.wins : 0,
+    maxCombo: state.maxCombo || 0,
   });
   return {
     win,

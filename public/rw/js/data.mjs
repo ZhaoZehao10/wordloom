@@ -97,6 +97,7 @@ export const ACHIEVEMENTS = {
   comboWin:    { icon: '🎭', name: '双重考验' }, // 迷雾+限时同时开启获胜
   veteran:     { icon: '🧭', name: '百局行者' }, // 生涯累计 100 局
   champion50:  { icon: '👑', name: '五十胜' },   // 生涯累计 50 胜
+  comboMaster: { icon: '⚡', name: '五连珠' },   // 单局最高 5 连击
 };
 
 export const DIFFICULTIES = [
@@ -184,7 +185,7 @@ export function packProgress(collection, packKeys = BASE_PACK_KEYS) {
 /** 成就分组（用于总览筛选；每个成就恰好属于一组）。 */
 export const ACHIEVEMENT_GROUPS = [
   { key: 'all', name: '全部', keys: null },
-  { key: 'single', name: '单局', keys: ['reach', 'calm', 'pearls', 'stroll', 'egg'] },
+  { key: 'single', name: '单局', keys: ['reach', 'calm', 'pearls', 'stroll', 'egg', 'comboMaster'] },
   { key: 'meta', name: '元进度', keys: ['collector', 'allDiffs', 'lexicon'] },
   { key: 'pack', name: '词包', keys: ['packClassic', 'packPoetry', 'packGeek', 'packNature'] },
   { key: 'streak', name: '打卡', keys: ['streak7', 'streak30', 'dailyWin', 'weekWin'] },
@@ -204,4 +205,4 @@ export function filterAchievementKeys(unlocked, { group = 'all', onlyLocked = fa
   });
 }
 /** 应用版本（与 package.json 保持一致，单测校验）。 */
-export const APP_VERSION = '1.4.25';
+export const APP_VERSION = '1.4.26';

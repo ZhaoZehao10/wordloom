@@ -1663,6 +1663,8 @@ section('AA. 生涯累计 & 里程碑');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerRounds: 99 })), ['抵达 1024'], '99 局不达成');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 50 })), ['抵达 1024', '五十胜'], '50 胜 → 五十胜');
   eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, careerWins: 49 })), ['抵达 1024'], '49 胜不达成');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, maxCombo: 4 })), ['抵达 1024'], '4 连不达成');
+  eq(names(achievementsFor({ win: true, stepsLeft: 1, wordCount: 1, maxCombo: 5 })), ['抵达 1024', '五连珠'], '5 连解锁五连珠');
   eq(streakDays([], '2026-11-15').length, 0, '空 streakDays');
   eq(streakDays([{ key: '2026-11-13' }, { key: '2026-11-14' }, { key: '2026-11-15' }], '2026-11-15').join(','), '2026-11-13,2026-11-14,2026-11-15', '连续三天列表');
   eq(streakDays([{ key: '2026-11-13' }, { key: '2026-11-15' }], '2026-11-15').join(','), '2026-11-15', '断档只保留今天');

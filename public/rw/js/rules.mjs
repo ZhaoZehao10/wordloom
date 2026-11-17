@@ -35,7 +35,7 @@ export function achievementsFor({
   win, stepsLeft, wordCount, unlimited = false,
   collectionSize = 0, diffsWon = [], lexiconTotal = 0, packsCompleted = [], streakBest = 0,
   dailyWin = false, weeklyWin = false, fogWin = false, timedWin = false, comboWin = false,
-  careerRounds = 0, careerWins = 0,
+  careerRounds = 0, careerWins = 0, maxCombo = 0,
 }) {
   const out = [];
   const add = (key) => out.push({ key, ...ACHIEVEMENTS[key] });
@@ -72,6 +72,7 @@ export function achievementsFor({
   if (win && comboWin) add('comboWin');
   if (Number.isFinite(careerRounds) && careerRounds >= 100) add('veteran');
   if (Number.isFinite(careerWins) && careerWins >= 50) add('champion50');
+  if (Number.isFinite(maxCombo) && maxCombo >= 5) add('comboMaster');
   return out;
 }
 
@@ -167,6 +168,7 @@ export function buildResult({
   comboWin = false,       // 迷雾+限时同时获胜
   careerRounds = 0,       // 生涯累计局数
   careerWins = 0,         // 生涯累计胜场
+  maxCombo = 0,           // 单局最高连击
   rand = Math.random,
 }) {
   const { poem, words } = pathPoem(visitedWords);
@@ -179,7 +181,7 @@ export function buildResult({
     steps,
     quote: quote || pickQuote(rand),
     achievements: achievementsFor({
-      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted, streakBest, dailyWin, weeklyWin, fogWin, timedWin, comboWin, careerRounds, careerWins,
+      win, stepsLeft, wordCount, unlimited, collectionSize, diffsWon, lexiconTotal, packsCompleted, streakBest, dailyWin, weeklyWin, fogWin, timedWin, comboWin, careerRounds, careerWins, maxCombo,
     }),
     bonus: finalScore({ win, stepsLeft, wordCount, unlimited }),
   };
