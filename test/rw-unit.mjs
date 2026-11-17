@@ -25,7 +25,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, streakDays, streakBadgeKeys, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, weeklyTop, streakDays, streakBadgeKeys, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -1883,6 +1883,26 @@ section('AK. 依赖审计');
   ok(noNotice.warnings.some((w) => w.includes('NOTICES')), '未声明许可警告');
   const badLicense = auditDependency(dep, 'const t="160",e={}', 'three.js MIT', 'GPL-3.0');
   ok(badLicense.errors.some((e) => e.includes('MIT')), '非 MIT 许可报错');
+}
+
+// ═══════════════════ AL. 周榜 Top 5 ═══════════════════
+
+section('AL. 周榜 Top 5');
+
+{
+  eq(weeklyTop([]).length, 0, '空周榜');
+  const top = weeklyTop([
+    { key: '2026-W44', score: 10 },
+    { key: '2026-W45', score: 30, win: true },
+    { key: '2026-W46', score: 20 },
+  ]);
+  eq(top.length, 3, '三条记录');
+  eq(top[0].rank, 1, '第一名');
+  eq(top[0].score, 30, '最高分在前');
+  eq(top[0].win, true, '胜利标记');
+  eq(top[2].score, 10, '最低分在后');
+  eq(weeklyTop(new Array(10).fill({ key: '2026-W45', score: 5 }), 5).length, 5, '限制 5 条');
+  eq(weeklyTop([{ key: 'bad', score: 5 }, { key: '2026-W45', score: NaN }]).length, 0, '脏数据过滤');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

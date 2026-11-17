@@ -77,6 +77,7 @@ export const EN = {
   '只看未解锁': 'Locked only',
   '搜索成就': 'Search achievements',
   '分享今日': 'Share today',
+  '周榜 Top 5': 'Weekly Top 5',
   '操作说明': 'Controls',
   '扳机': 'Trigger',
   '走子 / 收词': 'Move / collect',

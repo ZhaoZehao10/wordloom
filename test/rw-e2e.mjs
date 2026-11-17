@@ -963,6 +963,21 @@ const badgeMonth = await evalJs(`(() => {
   return { badges, text };
 })()`);
 ok(badgeMonth.badges === 1 && badgeMonth.text.includes('七日不辍'), `连续 7 天显示七日徽章「${badgeMonth.text}」`);
+const weekTop = await evalJs(`(() => {
+  window.__rw.debugSetWeeklyHistory([
+    { key: '2026-W44', score: 10 },
+    { key: '2026-W45', score: 30, win: true },
+    { key: '2026-W46', score: 20 },
+  ]);
+  window.__rw.debugOpenMonth(0);
+  const rows = document.querySelectorAll('#week-top .week-top-row').length;
+  const first = document.querySelector('#week-top .week-top-row b')?.textContent;
+  const title = document.querySelector('#week-top .week-top-title')?.textContent || '';
+  window.__rw.debugCloseMonth();
+  return { rows, first, title };
+})()`);
+ok(weekTop.rows === 3 && weekTop.first === '30', `周榜 Top 3 渲染（${weekTop.rows}，最高 ${weekTop.first}）`);
+ok(weekTop.title.includes('Top 5'), `周榜标题「${weekTop.title}」`);
 const dayShare = await evalJs(`window.__rw.debugShareDaily()`);
 ok(dayShare.includes('每日挑战') && dayShare.includes('http') && dayShare.includes('连续'), `每日分享文案「${dayShare.slice(0, 40)}…」`);
 const dayPoster = await evalJs(`(() => { const u = window.__rw.debugDailyPoster(); return { prefix: u.slice(0, 22), len: u.length }; })()`);

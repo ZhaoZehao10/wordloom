@@ -345,3 +345,13 @@ export function streakBadgeKeys(best) {
   if (n >= 30) out.push('streak30');
   return out;
 }
+/** 每周挑战本地排行榜：按分数降序取前 n 周。 */
+export function weeklyTop(history, n = 5) {
+  const list = (Array.isArray(history) ? history : [])
+    .filter((d) => d && typeof d.key === 'string' && /^\d{4}-W\d{2}$/.test(d.key) && Number.isFinite(d.score))
+    .slice()
+    .sort((a, b) => (b.score - a.score) || (a.key < b.key ? 1 : -1));
+  return list.slice(0, Math.max(1, n)).map((d, i) => ({
+    rank: i + 1, key: d.key, score: d.score, win: !!d.win,
+  }));
+}

@@ -29,7 +29,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, streakDays, streakBadgeKeys, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, weeklyTop, streakDays, streakBadgeKeys, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues, encryptSave, decryptSave, isEncryptedSave } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -220,6 +220,7 @@ window.__rw = {
   packList: () => WORD_PACKS[state.pack].words.slice(),
   debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); applyPackTheme(state.pack); refreshPackUI(); return state.pack; },
   dailyHistoryInfo: () => ({ history: state.dailyHistory.slice(), board: dailyBoard(state.dailyHistory, dailyKey(), 7) }),
+  debugSetWeeklyHistory: (rows) => { state.weeklyHistory = parseWeeklyHistory(JSON.stringify(rows || [])); updateHud(); return state.weeklyHistory.length; },
   debugSetDailyHistory: (rows) => { state.dailyHistory = parseDailyHistory(JSON.stringify(rows || [])); updateHud(); return state.dailyHistory.length; },
   debugRefreshHud: () => { updateHud(); return true; },
   chartInfo: () => {
@@ -1824,6 +1825,14 @@ function openMonth(offset = state.monthOffset || 0) {
     wb.innerHTML = rows.map((r) =>
       `<span class="week-chip${r.played ? ' played' : ''}${r.win ? ' win' : ''}"><small>${r.short}</small>${r.played ? r.score : '·'}</span>`
     ).join('');
+  }
+  const wt = $('week-top');
+  if (wt) {
+    const top = weeklyTop(state.weeklyHistory, 5);
+    wt.innerHTML = top.length
+      ? `<div class="week-top-title">${L('周榜 Top 5')}</div>` +
+        top.map((t) => `<div class="week-top-row"><span>#${t.rank} ${t.key}</span><b>${t.score}</b></div>`).join('')
+      : '';
   }
   $('month').classList.remove('hidden');
   sfx.ui();
