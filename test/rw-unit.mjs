@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys, APP_VERSION } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
-  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer,
+  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer, walkCombo,
 } from '../public/rw/js/rules.mjs';
 import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
@@ -1934,6 +1934,19 @@ section('AM. 补签卡');
   const again = applyFixYesterday(res.history, today, res.cards);
   eq(again.fixed, false, '重复补签失败');
   eq(again.cards, res.cards, '失败不扣卡');
+}
+
+// ═══════════════════ AN. 连击 ═══════════════════
+
+section('AN. 连击');
+
+{
+  eq(walkCombo(1000, 2000, 1), { combo: 2, bonus: 1 }, '1.0s 内连击 +1');
+  eq(walkCombo(1000, 3000, 2), { combo: 3, bonus: 2 }, '2.0s 内连击 +2');
+  eq(walkCombo(1000, 3600, 3), { combo: 1, bonus: 0 }, '超过 2.5s 断连');
+  eq(walkCombo(1000, 2200, 5), { combo: 5, bonus: 3 }, '连击上限 5，单步最多 +3');
+  eq(walkCombo(NaN, 1000, 2), { combo: 1, bonus: 0 }, '缺上次时间则重置');
+  eq(walkCombo(2000, 1000, 2), { combo: 1, bonus: 0 }, '时间倒流重置');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

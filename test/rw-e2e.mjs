@@ -1153,7 +1153,32 @@ const halo = await evalJs(`(async () => {
 ok(halo.a.length > 0 && halo.a.some((v, i) => Math.abs(v - halo.b[i]) > 0.001), '相邻光晕随时间呼吸');
 ok(halo.frozen.length > 0 && halo.frozen.every((v) => Math.abs(v - 1) < 0.001), '冻结时光晕复位为 1（基线稳定）');
 
-console.log('\n[35] 渲染帧检查（drawcall + 游戏中截图）');
+console.log('\n[35] 连击得分');
+const comboWalk = await evalJs(`(async () => {
+  window.__rw.startRound('normal');
+  await new Promise((r) => setTimeout(r, 300));
+  const st = window.__rw.state;
+  const adj = {};
+  for (const [a, b] of st.graph.edges) (adj[a] ||= []).push(b), (adj[b] ||= []).push(a);
+  const waitGlide = async () => { while (st.glide) await new Promise((r) => setTimeout(r, 40)); };
+  await waitGlide();
+  const first = adj[st.at][0];
+  window.__rw.tryWalk(first);
+  await waitGlide();
+  const second = adj[first].find((x) => x !== st.at);
+  window.__rw.tryWalk(second);
+  await waitGlide();
+  const combo = st.combo;
+  const maxCombo = st.maxCombo;
+  window.__rw.endRound(true);
+  await new Promise((r) => setTimeout(r, 200));
+  const text = document.getElementById('end-stats').textContent;
+  return { combo, maxCombo, text };
+})()`);
+ok(comboWalk.combo >= 2 && comboWalk.maxCombo >= 2, `两次快速走子触发连击（x${comboWalk.combo}）`);
+ok(comboWalk.text.includes('最高连击'), `结算页显示最高连击「${comboWalk.text.slice(0, 50)}…」`);
+
+console.log('\n[36] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);
 await sleep(1200);
 const frame = await evalJs(`({ calls: window.__rw.rendererInfo().calls, triangles: window.__rw.rendererInfo().triangles })`);

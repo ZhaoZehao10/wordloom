@@ -11,7 +11,7 @@ import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, pa
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
-import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw } from './rules.mjs';
+import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw, walkCombo } from './rules.mjs';
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import { ACHIEVEMENTS } from './data.mjs';
@@ -577,6 +577,13 @@ function tryWalk(idx, hand = null) {
   if (!state.unlimited) state.stepsLeft--;
   state.at = idx;
   state.visited.push(idx);
+  // 连击：快速连续走子加成（2.5s 内，最多 +3/步）
+  const comboNow = Date.now();
+  const cb = walkCombo(state.lastWalkTs, comboNow, state.combo);
+  state.combo = cb.combo;
+  state.maxCombo = Math.max(state.maxCombo, cb.combo);
+  state.lastWalkTs = comboNow;
+  if (cb.bonus > 0) { state.score += cb.bonus; pulse(hand, 0.3, 18); }
 
   const node = state.graph.nodes[idx];
   if (node.kind === 'word' && !node.collected) {
@@ -690,6 +697,9 @@ function startRound(diffKey, opts = {}) {
   state.eggTyped = '';
   state.at = 0;
   state.visited = [0];
+  state.combo = 0;
+  state.maxCombo = 0;
+  state.lastWalkTs = 0;
   state.collected = [];
   state.roundNew = [];
   state.score = 0;
@@ -2233,6 +2243,10 @@ function updateHud() {
     }
   }
   $('hud-words2').textContent = String(state.collected.length);
+  const comboChip = $('hud-combo-chip');
+  const comboEl = $('hud-combo');
+  if (comboChip) comboChip.style.display = state.combo >= 2 && state.mode === 'playing' ? '' : 'none';
+  if (comboEl) comboEl.textContent = `x${state.combo}`;
   $('hud-score2').textContent = String(state.score);
   $('hud-best2').textContent = String(state.best);
   // 每日挑战状态
@@ -2279,7 +2293,7 @@ function fillEnd() {
   $('end-poem').textContent = r.poem;
   $('end-quote').textContent = `「${r.quote.text}」`;
   $('end-quote-flavor').textContent = `—— ${L(r.quote.flavor)} ${L('一言')}`;
-  $('end-stats').textContent = `${state.comboRound ? `🎭 ${L('挑战')} · ` : ''}${state.timedRound ? `⏱ ${L('限时')} · ` : ''}${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
+  $('end-stats').textContent = `${state.comboRound ? `🎭 ${L('挑战')} · ` : ''}${state.timedRound ? `⏱ ${L('限时')} · ` : ''}${state.isDaily ? `${L('每日挑战')} ${state.dailyKey} · ` : state.isWeekly ? `${L('每周挑战')} ${state.weeklyKey} · ` : ''}${L(r.diffName)} · ${r.steps} ${L('步数')} · ${L('收录')} ${r.words.length} ${L('词')} · ${r.score} ${L('分')} · ${L('最佳')} ${r.best}${state.maxCombo >= 2 ? ` · ${L('最高连击')} x${state.maxCombo}` : ''}${state.isDaily && state.dailyBonus > 0 ? ` · +${state.dailyBonus} ${L('步数奖励')}` : ''}`;
   const prog = collectionProgress(state.collection, TOTAL_WORDS);
   $('end-history').textContent = [
     historyLine(),

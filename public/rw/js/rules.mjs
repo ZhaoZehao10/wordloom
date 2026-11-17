@@ -189,3 +189,11 @@ export function buildResult({
 export function roundTimer(diffKey) {
   return ({ easy: 120, normal: 90, hard: 75 })[diffKey] || 90;
 }
+/** 连击判定：相邻两次走子间隔 ≤ 2.5s 累计连击（上限 5），返回 {combo,bonus}。 */
+export function walkCombo(prevTs, nowTs, current = 0) {
+  const gap = Number.isFinite(prevTs) && Number.isFinite(nowTs) ? nowTs - prevTs : Infinity;
+  const prev = Number.isFinite(current) ? current : 0;
+  const combo = gap >= 0 && gap <= 2500 ? Math.min(5, prev + 1) : 1;
+  const bonus = combo >= 2 ? Math.min(3, combo - 1) : 0;
+  return { combo, bonus };
+}

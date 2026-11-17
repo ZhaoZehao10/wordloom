@@ -77,6 +77,8 @@ export const EN = {
   '只看未解锁': 'Locked only',
   '搜索成就': 'Search achievements',
   '分享今日': 'Share today',
+  '连击': 'Combo',
+  '最高连击': 'Max combo',
   '补签卡': 'Make-up cards',
   '补签昨天': 'Make up yesterday',
   '获得补签卡': 'Got a make-up card',
