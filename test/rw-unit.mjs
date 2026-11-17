@@ -25,7 +25,7 @@ import {
 import { buildReplayPath, replayAt, replayDuration } from '../public/rw/js/replay.mjs';
 import {
   dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord,
-  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, weeklyTop, streakDays, streakBadgeKeys, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
+  parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, addDays, streakBonus, dailyBest, weeklyBest, weeklyTop, streakDays, streakBadgeKeys, parseFixCards, earnedFixCards, canFixYesterday, applyFixYesterday, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weekStartDate, addWeeks, parseWeeklyHistory, appendWeeklyHistory, weeklyBoard, DAILY_HISTORY_LIMIT,
 } from '../public/rw/js/daily.mjs';
 import { vignetteOpacity, clampVolume, volumeToPercent, seatedOffset } from '../public/rw/js/comfort.mjs';
 import { barLayout, chartSummary, trendSlope } from '../public/rw/js/chart.mjs';
@@ -1903,6 +1903,37 @@ section('AL. 周榜 Top 5');
   eq(top[2].score, 10, '最低分在后');
   eq(weeklyTop(new Array(10).fill({ key: '2026-W45', score: 5 }), 5).length, 5, '限制 5 条');
   eq(weeklyTop([{ key: 'bad', score: 5 }, { key: '2026-W45', score: NaN }]).length, 0, '脏数据过滤');
+}
+
+// ═══════════════════ AM. 补签卡 ═══════════════════
+
+section('AM. 补签卡');
+
+{
+  eq(parseFixCards(''), 0, '空补签卡');
+  eq(parseFixCards('2'), 2, '解析数量');
+  eq(parseFixCards('-1'), 0, '负值归零');
+  eq(parseFixCards('9'), 3, '上限 3');
+  eq(parseFixCards('abc'), 0, '非法归零');
+
+  eq(earnedFixCards(7), 1, '连续 7 天奖励 1 张');
+  eq(earnedFixCards(14), 1, '连续 14 天再奖励');
+  eq(earnedFixCards(13), 0, '13 天无奖励');
+  eq(earnedFixCards(0), 0, '0 天无奖励');
+  eq(earnedFixCards(NaN), 0, 'NaN 无奖励');
+
+  const today = '2026-11-17';
+  ok(canFixYesterday([{ key: today }], today, 1), '缺昨天且有卡可补');
+  ok(!canFixYesterday([{ key: today }], today, 0), '无卡不可补');
+  ok(!canFixYesterday([{ key: today }, { key: '2026-11-16' }], today, 1), '昨天已存在不可补');
+
+  const res = applyFixYesterday([{ key: today }], today, 2);
+  ok(res.fixed, '补签成功');
+  eq(res.cards, 1, '卡片减一');
+  ok(res.history.some((d) => d.key === '2026-11-16'), '历史包含昨天');
+  const again = applyFixYesterday(res.history, today, res.cards);
+  eq(again.fixed, false, '重复补签失败');
+  eq(again.cards, res.cards, '失败不扣卡');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

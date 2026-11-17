@@ -377,3 +377,11 @@ button.ghost:hover { color: var(--text); }
 .week-top-row { display: flex; justify-content: space-between; font-size: 12px; color: #8b96b8;
   padding: 3px 10px; border-bottom: 1px solid rgba(140,165,255,0.08); }
 .week-top-row b { color: #ffcf4d; }
+
+/* ---------- 补签卡 ---------- */
+
+.fix-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 2px auto 10px; }
+.fix-info { font-size: 12px; color: #8b96b8; }
+.fix-btn { font-size: 12px; color: #0b1020; background: #6cd0ff; border: none; border-radius: 999px;
+  padding: 5px 12px; cursor: pointer; font-weight: 600; }
+.fix-btn:hover { filter: brightness(1.08); }

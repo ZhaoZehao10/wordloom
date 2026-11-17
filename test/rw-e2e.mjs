@@ -978,6 +978,22 @@ const weekTop = await evalJs(`(() => {
 })()`);
 ok(weekTop.rows === 3 && weekTop.first === '30', `周榜 Top 3 渲染（${weekTop.rows}，最高 ${weekTop.first}）`);
 ok(weekTop.title.includes('Top 5'), `周榜标题「${weekTop.title}」`);
+const fix = await evalJs(`(() => {
+  const st = window.__rw.state;
+  const today = window.__rw.dailyInfo().key;
+  st.dailyHistory = [{ key: today, score: 5, win: false, ts: Date.now() }];
+  window.__rw.debugSetFixCards(1);
+  window.__rw.debugOpenMonth(0);
+  const before = window.__rw.fixInfo();
+  const btn = document.getElementById('fix-yesterday');
+  if (btn) btn.click();
+  const after = window.__rw.fixInfo();
+  const hasYesterday = st.dailyHistory.some((d) => d.key !== today);
+  window.__rw.debugCloseMonth();
+  return { before, after, hasYesterday, hadButton: !!btn };
+})()`);
+ok(fix.before.cards === 1 && fix.before.canFix, '有卡且昨天缺失时可补签');
+ok(fix.hadButton && fix.after.cards === 0 && fix.hasYesterday, `补签成功并扣卡（剩余 ${fix.after.cards}）`);
 const dayShare = await evalJs(`window.__rw.debugShareDaily()`);
 ok(dayShare.includes('每日挑战') && dayShare.includes('http') && dayShare.includes('连续'), `每日分享文案「${dayShare.slice(0, 40)}…」`);
 const dayPoster = await evalJs(`(() => { const u = window.__rw.debugDailyPoster(); return { prefix: u.slice(0, 22), len: u.length }; })()`);

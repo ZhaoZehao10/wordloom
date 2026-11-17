@@ -355,3 +355,36 @@ export function weeklyTop(history, n = 5) {
     rank: i + 1, key: d.key, score: d.score, win: !!d.win,
   }));
 }
+// ---------------- 补签卡 ----------------
+
+export const FIX_CARDS_KEY = 'rw-fix-cards';
+export const FIX_CARDS_MAX = 3;
+
+/** 解析补签卡数量（0~3）。 */
+export function parseFixCards(raw) {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? Math.min(FIX_CARDS_MAX, Math.max(0, n)) : 0;
+}
+
+/** 连续打卡每满 7 天奖励 1 张补签卡。 */
+export function earnedFixCards(streak) {
+  const n = Number.isFinite(streak) ? Math.trunc(streak) : 0;
+  return n > 0 && n % 7 === 0 ? 1 : 0;
+}
+
+/** 昨天是否可补签。 */
+export function canFixYesterday(history, todayKey, cards) {
+  if (!Number.isFinite(cards) || cards <= 0) return false;
+  const y = addDays(todayKey, -1);
+  return !(Array.isArray(history) ? history : []).some((d) => d && d.key === y);
+}
+
+/** 补签昨天：返回新历史、剩余卡片与是否成功。 */
+export function applyFixYesterday(history, todayKey, cards) {
+  if (!canFixYesterday(history, todayKey, cards)) {
+    return { history: Array.isArray(history) ? history : [], cards, fixed: false };
+  }
+  const key = addDays(todayKey, -1);
+  const rec = { key, score: 0, win: false, ts: Date.now() };
+  return { history: appendDailyHistory(history, rec), cards: cards - 1, fixed: true };
+}

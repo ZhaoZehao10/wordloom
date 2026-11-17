@@ -29,7 +29,7 @@ import {
 } from './stats.mjs';
 import { renderTonePCM, toneKey, stepFreq } from './spatial.mjs';
 import { buildReplayPath, replayAt, replayDuration } from './replay.mjs';
-import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, weeklyTop, streakDays, streakBadgeKeys, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
+import { dailyKey, dailySeed, dailyDifficulty, parseDaily, dailyStatus, dailyRecord, parseDailyHistory, appendDailyHistory, dailyBoard, monthGrid, monthSummary, dailyStreak, streakBonus, dailyBest, weekKey, weekSeed, weekDifficulty, parseWeekly, weeklyStatus, weeklyRecord, weeklyBoard, parseWeeklyHistory, appendWeeklyHistory, weeklyBest, weeklyTop, streakDays, streakBadgeKeys, parseFixCards, earnedFixCards, canFixYesterday, applyFixYesterday, FIX_CARDS_KEY, FIX_CARDS_MAX, WEEKLY_HISTORY_KEY, DAILY_HISTORY_KEY } from './daily.mjs';
 import { exportSave, importSave, resetValues, encryptSave, decryptSave, isEncryptedSave } from './save.mjs';
 import { tr, normalizeLang, applyDomI18n, LANG_KEY } from './i18n.mjs';
 import { parseTutorialDone, shouldShowTutorial, tutorialDoneValue, TUTORIAL_DONE_KEY, TUTORIAL_STEPS } from './tutorial.mjs';
@@ -72,6 +72,7 @@ const state = {
   monthOffset: 0,               // 月视图偏移（0=本月）
   comboRound: false,            // 本局是否为挑战模式
   comboBest: parseComboBest(localStorage.getItem(COMBO_BEST_KEY) || ''), // 挑战最佳
+  fixCards: parseFixCards(localStorage.getItem(FIX_CARDS_KEY) || ''), // 补签卡
   achFilter: { group: 'all', onlyLocked: false }, // 成就面板筛选
   weekly: parseWeekly(localStorage.getItem('rw-weekly') || ''), // 本周成绩
   weeklyHistory: parseWeeklyHistory(localStorage.getItem(WEEKLY_HISTORY_KEY) || ''), // 周榜
@@ -220,6 +221,9 @@ window.__rw = {
   packList: () => WORD_PACKS[state.pack].words.slice(),
   debugSetPack: (k) => { state.pack = normalizePack(k); localStorage.setItem('rw-pack', state.pack); applyPackTheme(state.pack); refreshPackUI(); return state.pack; },
   dailyHistoryInfo: () => ({ history: state.dailyHistory.slice(), board: dailyBoard(state.dailyHistory, dailyKey(), 7) }),
+  fixInfo: () => ({ cards: state.fixCards, canFix: canFixYesterday(state.dailyHistory, dailyKey(), state.fixCards) }),
+  debugSetFixCards: (n) => { state.fixCards = parseFixCards(String(n)); localStorage.setItem(FIX_CARDS_KEY, String(state.fixCards)); updateHud(); return state.fixCards; },
+  debugFixYesterday: () => fixYesterday(),
   debugSetWeeklyHistory: (rows) => { state.weeklyHistory = parseWeeklyHistory(JSON.stringify(rows || [])); updateHud(); return state.weeklyHistory.length; },
   debugSetDailyHistory: (rows) => { state.dailyHistory = parseDailyHistory(JSON.stringify(rows || [])); updateHud(); return state.dailyHistory.length; },
   debugRefreshHud: () => { updateHud(); return true; },
@@ -756,6 +760,16 @@ function endRound(win) {
     localStorage.setItem('rw-daily', JSON.stringify(state.daily));
     state.dailyHistory = appendDailyHistory(state.dailyHistory, state.daily);
     localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(state.dailyHistory));
+    // 连续满 7 天奖励补签卡
+    if (win) {
+      const ns = dailyStreak(state.dailyHistory, state.dailyKey).current;
+      const earned = earnedFixCards(ns);
+      if (earned > 0 && state.fixCards < FIX_CARDS_MAX) {
+        state.fixCards = Math.min(FIX_CARDS_MAX, state.fixCards + earned);
+        localStorage.setItem(FIX_CARDS_KEY, String(state.fixCards));
+        showToast(`🎫 ${L('获得补签卡')} ×${earned}`);
+      }
+    }
   }
   if (state.isWeekly && state.weeklyKey) {
     state.weekly = weeklyRecord({ key: state.weeklyKey, score: state.score, win });
@@ -1818,6 +1832,15 @@ function openMonth(offset = state.monthOffset || 0) {
       ? badges.map((k) => `<span class="streak-badge">${k === 'streak7' ? `🔥 ${L('七日不辍')}` : `🗓 ${L('月满勤')}`}</span>`).join('')
       : `<span class="streak-badge muted">${L('暂无连续徽章')}</span>`;
   }
+  // 补签卡
+  const fr = $('fix-row');
+  if (fr) {
+    const can = canFixYesterday(state.dailyHistory, dailyKey(), state.fixCards);
+    fr.innerHTML = `<span class="fix-info">🎫 ${L('补签卡')} ${state.fixCards}/${FIX_CARDS_MAX}</span>` +
+      (can ? `<button id="fix-yesterday" class="fix-btn">${L('补签昨天')}（-1）</button>` : '');
+    const btn = $('fix-yesterday');
+    if (btn) btn.onclick = () => fixYesterday();
+  }
   // 最近 8 周榜
   const wb = $('week-board');
   if (wb) {
@@ -1840,6 +1863,21 @@ function openMonth(offset = state.monthOffset || 0) {
 }
 
 function closeMonth() { $('month').classList.add('hidden'); }
+
+/** 使用补签卡补昨天。 */
+function fixYesterday() {
+  const res = applyFixYesterday(state.dailyHistory, dailyKey(), state.fixCards);
+  if (!res.fixed) return false;
+  state.dailyHistory = res.history;
+  state.fixCards = res.cards;
+  localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(state.dailyHistory));
+  localStorage.setItem(FIX_CARDS_KEY, String(state.fixCards));
+  updateHud();
+  const m = $('month');
+  if (m && !m.classList.contains('hidden')) openMonth(state.monthOffset);
+  sfx.ui();
+  return true;
+}
 
 /** 每周榜分享海报（1080×1350 PNG）：最近 8 周柱状图 + 摘要。 */
 function buildWeeklyPosterDataURL() {
