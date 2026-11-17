@@ -1448,6 +1448,13 @@ section('S. 每周挑战 & 海报生涯');
   ]);
   ok(html.includes('历史最佳 <b>80</b>'), '报告包含历史最佳 fps');
   ok(html.includes('最差 <b>70</b>'), '报告包含历史最差 fps');
+  const vhtml = renderPerfReport([
+    { ts: 1, version: '1.0.0', fps: 60, drawCalls: 40, triangles: 8000, buildMs: 600, rebuildMs: 300 },
+    { ts: 2, version: '1.1.0', fps: 80, drawCalls: 41, triangles: 8100, buildMs: 480, rebuildMs: 250 },
+  ]);
+  ok(vhtml.includes('按版本汇总') && vhtml.includes('1.1.0') && vhtml.includes('1.0.0'), '报告包含版本汇总');
+  ok(vhtml.includes('开局耗时趋势') && vhtml.includes('重开耗时趋势'), '报告包含四条趋势');
+  ok(vhtml.includes('<td>1.1.0</td>'), '表格包含版本列');
 }
 
 // ═══════════════════ T. 周榜 & 新成就判定 ═══════════════════

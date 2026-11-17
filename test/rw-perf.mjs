@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { resolveChrome, tempProfile } from './chrome.mjs';
+import { APP_VERSION } from '../public/rw/js/data.mjs';
 
 const CHROME = resolveChrome();
 const PORT = 9344;
@@ -89,7 +90,7 @@ if (prev) {
   const dFps = (perf.fps - prev.fps).toFixed(1);
   console.log(`对比上次（${new Date(prev.ts).toISOString().slice(0, 16)}）：fps ${prev.fps}→${perf.fps}（${dFps >= 0 ? '+' : ''}${dFps}）· drawcall ${prev.drawCalls}→${perf.drawCalls}`);
 }
-hist.push({ ts: Date.now(), ...perf });
+hist.push({ ts: Date.now(), version: APP_VERSION, ...perf });
 try { fs.writeFileSync(histPath, JSON.stringify(hist.slice(-30), null, 2)); } catch { /* 只读环境忽略 */ }
 
 // 通过标准（双门禁）：

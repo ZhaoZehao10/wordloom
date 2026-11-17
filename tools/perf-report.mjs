@@ -48,9 +48,26 @@ export function renderPerfReport(history) {
   const rows = list.map((r, i) => {
     const d = prev && i === list.length - 1 ? (r.fps - prev.fps) : null;
     return `<tr><td>${new Date(r.ts).toISOString().slice(0, 16).replace('T', ' ')}</td>` +
+      `<td>${esc(r.version || '—')}</td>` +
       `<td>${r.fps}</td><td>${r.drawCalls}</td><td>${r.triangles}</td><td>${r.buildMs}ms</td>` +
       `<td>${d === null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(1)}</td></tr>`;
   }).join('');
+
+  // 按版本汇总（版本缺失记为 —）
+  const byVersion = new Map();
+  for (const r of list) {
+    const v = r.version || '—';
+    const cur = byVersion.get(v) || { version: v, count: 0, fpsSum: 0, minBuild: Infinity, lastTs: 0 };
+    cur.count++;
+    cur.fpsSum += r.fps;
+    cur.minBuild = Math.min(cur.minBuild, Number.isFinite(r.buildMs) ? r.buildMs : Infinity);
+    cur.lastTs = Math.max(cur.lastTs, r.ts || 0);
+    byVersion.set(v, cur);
+  }
+  const versionRows = [...byVersion.values()].sort((a, b) => b.lastTs - a.lastTs).map((v) =>
+    `<tr><td>${esc(v.version)}</td><td>${v.count}</td><td>${(v.fpsSum / v.count).toFixed(1)}</td>` +
+    `<td>${Number.isFinite(v.minBuild) ? v.minBuild + 'ms' : '—'}</td></tr>`
+  ).join('');
 
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>拾径 · 性能趋势</title>
@@ -63,14 +80,17 @@ export function renderPerfReport(history) {
  .k{color:#8b96b8;font-size:12px}
 </style></head><body>
 <h1>拾径 · 性能趋势</h1>
-<div class="card"><span class="k">共 ${list.length} 次记录 · 最近一次 ${new Date(latest.ts).toISOString().slice(0, 16).replace('T', ' ')}</span>
+<div class="card"><span class="k">共 ${list.length} 次记录 · 最近一次 ${new Date(latest.ts).toISOString().slice(0, 16).replace('T', ' ')} · 版本 ${esc(latest.version || '—')}</span>
 <p>帧率 <b>${latest.fps}</b> fps（历史最佳 <b>${best}</b> / 最差 <b>${worst}</b>） · drawcall <b>${latest.drawCalls}</b> · 三角形 <b>${latest.triangles}</b> · 开局 <b>${latest.buildMs}ms</b>
 ${prev ? ` · 较上次帧率 <b>${(latest.fps - prev.fps >= 0 ? '+' : '') + (latest.fps - prev.fps).toFixed(1)}</b>` : ''}</p></div>
 <div class="grid">
  <div class="card"><div class="k">帧率趋势</div><svg width="520" height="120">${svgLine(list.map((r) => r.fps), { color: '#6cd0ff' })}</svg></div>
  <div class="card"><div class="k">Drawcall 趋势</div><svg width="520" height="120">${svgLine(list.map((r) => r.drawCalls), { color: '#b18cff' })}</svg></div>
+ <div class="card"><div class="k">开局耗时趋势</div><svg width="520" height="120">${svgLine(list.map((r) => r.buildMs), { color: '#ffcf4d' })}</svg></div>
+ <div class="card"><div class="k">重开耗时趋势</div><svg width="520" height="120">${svgLine(list.map((r) => r.rebuildMs), { color: '#6cd0a0' })}</svg></div>
 </div>
-<div class="card"><table><thead><tr><th>时间</th><th>fps</th><th>drawcall</th><th>三角形</th><th>开局</th><th>Δfps</th></tr></thead><tbody>${rows}</tbody></table></div>
+<div class="card"><div class="k">按版本汇总</div><table><thead><tr><th>版本</th><th>次数</th><th>平均 fps</th><th>最佳开局</th></tr></thead><tbody>${versionRows}</tbody></table></div>
+<div class="card"><table><thead><tr><th>时间</th><th>版本</th><th>fps</th><th>drawcall</th><th>三角形</th><th>开局</th><th>Δfps</th></tr></thead><tbody>${rows}</tbody></table></div>
 </body></html>`;
 }
 
