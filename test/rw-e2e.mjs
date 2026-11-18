@@ -1017,6 +1017,14 @@ const timed = await evalJs(`(async () => {
   await new Promise(r => setTimeout(r, 1200));
   const info2 = window.__rw.timedInfo();
   const st = window.__rw.state;
+  st.timeLeft = 8;
+  await new Promise(r => setTimeout(r, 180));
+  window.__rw.debugRefreshHud();
+  const warnClass = document.getElementById('hud-timer-chip').className;
+  st.timeLeft = 4;
+  await new Promise(r => setTimeout(r, 180));
+  window.__rw.debugRefreshHud();
+  const critClass = document.getElementById('hud-timer-chip').className;
   st.timeLeft = 0.05;
   await new Promise(r => setTimeout(r, 500));
   const mode = st.mode;
@@ -1026,7 +1034,7 @@ const timed = await evalJs(`(async () => {
   const recentRows = document.querySelectorAll('#recent-list .recent-row').length;
   window.__rw.debugCloseStats();
   window.__rw.debugSetTimed(false);
-  return { info1, chip, text, decreased: info1.timeLeft - info2.timeLeft, mode, endText, timedText, recentRows };
+  return { info1, chip, text, decreased: info1.timeLeft - info2.timeLeft, mode, endText, timedText, recentRows, warnClass, critClass };
 })()`);
 ok(timed.info1.timed === true && timed.info1.timedRound === true, '限时模式已开启并作用于本局');
 ok(timed.info1.timeLeft > 85 && timed.info1.timeLeft <= 90, `标准难度倒计时 90s（${timed.info1.timeLeft.toFixed(1)}）`);
@@ -1035,6 +1043,8 @@ ok(timed.decreased >= 0.8, `倒计时在走（-${timed.decreased.toFixed(1)}s）
 ok(timed.mode === 'ended-fail' && timed.endText.includes('限时'), `超时判负并标注限时「${timed.endText.slice(0, 40)}…」`);
 ok(timed.timedText.includes('限时最佳') && /标准 \d+/.test(timed.timedText), `统计面板显示限时最佳「${timed.timedText}」`);
 ok(timed.recentRows >= 1, `最近对局列表有记录（${timed.recentRows} 行）`);
+ok(timed.warnClass.includes('warn') && !timed.warnClass.includes('critical'), `最后 10 秒 HUD 警示（${timed.warnClass}）`);
+ok(timed.critClass.includes('critical'), `最后 5 秒 HUD 紧急闪烁（${timed.critClass}）`);
 
 console.log('\n[30] 迷雾模式 & 模式成就');
 const fog = await evalJs(`(async () => {

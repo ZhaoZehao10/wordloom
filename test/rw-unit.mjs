@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys, APP_VERSION } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
-  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer, walkCombo, comboFeedback,
+  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer, walkCombo, comboFeedback, timerState,
 } from '../public/rw/js/rules.mjs';
 import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
@@ -1956,6 +1956,11 @@ section('AN. 连击');
   eq(f5.duration, 48, '5 连时长');
   eq(comboFeedback(9), f5, '超过 5 连按 5 连');
   eq(comboFeedback(NaN), comboFeedback(1), 'NaN 按 1 连');
+  eq(timerState(11), { seconds: 11, warning: false, critical: false }, '11s 正常');
+  eq(timerState(10), { seconds: 10, warning: true, critical: false }, '10s 警示');
+  eq(timerState(5), { seconds: 5, warning: true, critical: true }, '5s 紧急');
+  eq(timerState(0).warning, false, '0s 不警示');
+  eq(timerState(NaN).warning, false, 'NaN 安全');
 }
 
 // ═══════════════════ 汇总 ═══════════════════

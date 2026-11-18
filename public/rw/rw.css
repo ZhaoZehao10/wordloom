@@ -385,3 +385,10 @@ button.ghost:hover { color: var(--text); }
 .fix-btn { font-size: 12px; color: #0b1020; background: #6cd0ff; border: none; border-radius: 999px;
   padding: 5px 12px; cursor: pointer; font-weight: 600; }
 .fix-btn:hover { filter: brightness(1.08); }
+
+/* ---------- 限时警示 ---------- */
+
+.hud-chip.warn { color: #ff6b6b !important; border-color: rgba(255,107,107,0.6) !important; }
+.hud-chip.warn b { color: #ff6b6b !important; }
+.hud-chip.critical { animation: timer-blink .5s ease-in-out infinite; }
+@keyframes timer-blink { 0%,100% { opacity: 1; } 50% { opacity: .45; } }

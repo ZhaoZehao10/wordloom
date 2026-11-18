@@ -208,3 +208,8 @@ export function comboFeedback(combo) {
     pitch: Math.round(523.25 * Math.pow(2, (n - 2) / 12) * 100) / 100,
   };
 }
+/** 限时状态：最后 10 秒 warning，最后 5 秒 critical。 */
+export function timerState(timeLeft) {
+  const s = Number.isFinite(timeLeft) ? Math.max(0, timeLeft) : 0;
+  return { seconds: Math.ceil(s), warning: s > 0 && s <= 10, critical: s > 0 && s <= 5 };
+}

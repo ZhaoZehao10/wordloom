@@ -74,6 +74,10 @@ export const sfx = {
     tone(f * 1.5, 0.14, { ...inst().collect, delay: 0.06 });
   },
   win()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, { gain: 0.12, delay: i * 0.13 })); },
+  warn(n) {
+    const f = n >= 5 ? 1108.73 : 880;
+    tone(f, 0.06, { ...inst().ui, gain: 0.08 });
+  },
   combo(n) {
     const level = Math.max(2, Math.min(5, Number.isFinite(n) ? n : 2));
     const f = 523.25 * Math.pow(2, (level - 2) / 12);

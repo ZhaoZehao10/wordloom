@@ -11,7 +11,7 @@ import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, pa
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
-import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw, walkCombo, comboFeedback } from './rules.mjs';
+import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw, walkCombo, comboFeedback, timerState } from './rules.mjs';
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import { ACHIEVEMENTS } from './data.mjs';
@@ -706,6 +706,7 @@ function startRound(diffKey, opts = {}) {
   state.combo = 0;
   state.maxCombo = 0;
   state.lastWalkTs = 0;
+  state.lastWarnSec = 0;
   state.collected = [];
   state.roundNew = [];
   state.score = 0;
@@ -2244,8 +2245,11 @@ function updateHud() {
     if (state.timedRound && state.timeLeft !== null) {
       const sec = Math.max(0, Math.ceil(state.timeLeft));
       timerEl.textContent = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+      const tst = timerState(state.timeLeft);
+      timerChip.className = 'hud-chip' + (tst.warning ? ' warn' : '') + (tst.critical ? ' critical' : '');
       timerChip.style.display = '';
     } else {
+      timerChip.className = 'hud-chip';
       timerChip.style.display = 'none';
     }
   }
@@ -2743,6 +2747,13 @@ function animate() {
   // 限时模式倒计时（暂停/冻结时不走）
   if (state.mode === 'playing' && state.timedRound && state.timeLeft !== null && !state.frozen) {
     state.timeLeft = Math.max(0, state.timeLeft - dt);
+    const ts = timerState(state.timeLeft);
+    if (ts.warning && ts.seconds > 0 && ts.seconds !== state.lastWarnSec) {
+      state.lastWarnSec = ts.seconds;
+      if (sfx.warn) sfx.warn(ts.seconds);
+    } else if (!ts.warning) {
+      state.lastWarnSec = 0;
+    }
     if (state.timeLeft <= 0) {
       state.timeLeft = 0;
       endRound(false);
