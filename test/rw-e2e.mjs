@@ -1175,11 +1175,14 @@ const comboWalk = await evalJs(`(async () => {
   await new Promise((r) => setTimeout(r, 200));
   const text = document.getElementById('end-stats').textContent;
   const comboAch = window.__rw.achievementInfo().unlocked.includes('comboMaster');
-  return { combo, maxCombo, text, comboAch };
+  const fb2 = window.__rw.comboFeedbackInfo(2);
+  const fb5 = window.__rw.comboFeedbackInfo(5);
+  return { combo, maxCombo, text, comboAch, fb2, fb5 };
 })()`);
 ok(comboWalk.combo >= 2 && comboWalk.maxCombo >= 2, `两次快速走子触发连击（x${comboWalk.combo}）`);
 ok(comboWalk.text.includes('最高连击'), `结算页显示最高连击「${comboWalk.text.slice(0, 50)}…」`);
 ok(comboWalk.comboAch, '5 连解锁「五连珠」成就');
+ok(comboWalk.fb5.intensity > comboWalk.fb2.intensity && comboWalk.fb5.duration > comboWalk.fb2.duration, '连击越高震动越强越长');
 
 console.log('\n[36] 渲染帧检查（drawcall + 游戏中截图）');
 await evalJs(`window.__rw.startRound('normal')`);

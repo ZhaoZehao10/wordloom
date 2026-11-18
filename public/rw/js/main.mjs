@@ -11,7 +11,7 @@ import { WORDS, WORD_PACKS, PACK_KEYS, ALL_WORDS, TOTAL_WORDS, normalizePack, pa
 import { generateGraph } from './graph.mjs';
 import { sfx, audio } from './audio.mjs';
 import { buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode } from './geometry.mjs';
-import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw, walkCombo } from './rules.mjs';
+import { scoreForWalk, finalScore, buildResult, pickQuote, snapTurn, normalizeYaw, walkCombo, comboFeedback } from './rules.mjs';
 import { drawPoster, POSTER_SIZE } from './poster.mjs';
 import { drawMenu, hitTestMenu, MENU_W, MENU_H } from './menu.mjs';
 import { ACHIEVEMENTS } from './data.mjs';
@@ -272,6 +272,7 @@ window.__rw = {
   toastInfo: () => { const el = $('ach-toast'); return { shown: !!(el && el.classList.contains('show')), animation: el ? getComputedStyle(el).animationName : '', vr: !!vrToast }; },
   timedInfo: () => ({ timed: state.timed, timedRound: state.timedRound, timeLeft: state.timeLeft }),
   comboInfo: () => ({ comboRound: state.comboRound, best: state.comboBest, fog: state.fog, timed: state.timed, timeLeft: state.timeLeft }),
+  comboFeedbackInfo: (n) => comboFeedback(n),
   debugStartCombo: () => startRound(null, { combo: true }),
   fogInfo: () => { const adj = state.graph ? adjacentOf(state.at) : []; const labels = state.graph ? state.graph.nodes.filter((n) => n._obj && n._obj.userData.label.visible).length : 0; return { fog: state.fog, adjacent: adj.length, labels }; },
   haloInfo: () => { if (!state.graph) return []; const adj = adjacentOf(state.at); return adj.map((i) => state.graph.nodes[i]._obj.userData.halo.scale.x); },
@@ -583,7 +584,12 @@ function tryWalk(idx, hand = null) {
   state.combo = cb.combo;
   state.maxCombo = Math.max(state.maxCombo, cb.combo);
   state.lastWalkTs = comboNow;
-  if (cb.bonus > 0) { state.score += cb.bonus; pulse(hand, 0.3, 18); }
+  if (cb.bonus > 0) {
+    state.score += cb.bonus;
+    const fb = comboFeedback(cb.combo);
+    pulse(hand, fb.intensity, fb.duration);
+    if (sfx.combo) sfx.combo(cb.combo);
+  }
 
   const node = state.graph.nodes[idx];
   if (node.kind === 'word' && !node.collected) {

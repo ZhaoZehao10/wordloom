@@ -199,3 +199,12 @@ export function walkCombo(prevTs, nowTs, current = 0) {
   const bonus = combo >= 2 ? Math.min(3, combo - 1) : 0;
   return { combo, bonus };
 }
+/** 连击反馈参数：震动强度/时长与音调随连击递增（1~5）。 */
+export function comboFeedback(combo) {
+  const n = Number.isFinite(combo) ? Math.max(1, Math.min(5, Math.trunc(combo))) : 1;
+  return {
+    intensity: Math.min(0.9, Math.round((0.3 + 0.12 * n) * 100) / 100),
+    duration: Math.min(80, 18 + 6 * n),
+    pitch: Math.round(523.25 * Math.pow(2, (n - 2) / 12) * 100) / 100,
+  };
+}

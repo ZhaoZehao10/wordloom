@@ -74,6 +74,12 @@ export const sfx = {
     tone(f * 1.5, 0.14, { ...inst().collect, delay: 0.06 });
   },
   win()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, { gain: 0.12, delay: i * 0.13 })); },
+  combo(n) {
+    const level = Math.max(2, Math.min(5, Number.isFinite(n) ? n : 2));
+    const f = 523.25 * Math.pow(2, (level - 2) / 12);
+    tone(f, 0.08, { ...inst().collect, gain: 0.1 });
+    if (level >= 4) tone(f * 1.5, 0.1, { ...inst().collect, gain: 0.09, delay: 0.05 });
+  },
   fail() { tone(330, 0.25, { gain: 0.1 }); tone(262, 0.35, { gain: 0.1, delay: 0.18 }); },
   ui()   { tone(880, 0.05, inst().ui); },
   egg()  { [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.16, { gain: 0.1, delay: i * 0.09 })); },

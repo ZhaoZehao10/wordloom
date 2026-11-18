@@ -205,4 +205,4 @@ export function filterAchievementKeys(unlocked, { group = 'all', onlyLocked = fa
   });
 }
 /** 应用版本（与 package.json 保持一致，单测校验）。 */
-export const APP_VERSION = '1.4.26';
+export const APP_VERSION = '1.4.27';

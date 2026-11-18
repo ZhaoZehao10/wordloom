@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { WORDS, FLAVORS, QUOTES, SKINS, TIMBRES, DIFFICULTIES, ACHIEVEMENTS, SCORE, WORD_PACKS, PACK_KEYS, TOTAL_WORDS, normalizePack, packProgress, ACHIEVEMENT_GROUPS, filterAchievementKeys, APP_VERSION } from '../public/rw/js/data.mjs';
 import {
   scoreForWalk, finalScore, achievementsFor, pathPoem, pickQuote, buildResult,
-  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer, walkCombo,
+  snapTurn, normalizeYaw, MOVE_MODES, normalizeMoveMode, nextMoveMode, roundTimer, walkCombo, comboFeedback,
 } from '../public/rw/js/rules.mjs';
 import {
   buildEdgeGeometry, paintEdges, buildNodeSpheres, recolorNode,
@@ -1949,6 +1949,13 @@ section('AN. 连击');
   eq(walkCombo(1000, 2200, 5), { combo: 5, bonus: 3 }, '连击上限 5，单步最多 +3');
   eq(walkCombo(NaN, 1000, 2), { combo: 1, bonus: 0 }, '缺上次时间则重置');
   eq(walkCombo(2000, 1000, 2), { combo: 1, bonus: 0 }, '时间倒流重置');
+  eq(comboFeedback(1), { intensity: 0.42, duration: 24, pitch: 493.88 }, '1 连反馈参数');
+  eq(comboFeedback(2).intensity, 0.54, '2 连震动增强');
+  const f5 = comboFeedback(5);
+  eq(f5.intensity, 0.9, '5 连强度封顶');
+  eq(f5.duration, 48, '5 连时长');
+  eq(comboFeedback(9), f5, '超过 5 连按 5 连');
+  eq(comboFeedback(NaN), comboFeedback(1), 'NaN 按 1 连');
 }
 
 // ═══════════════════ 汇总 ═══════════════════
